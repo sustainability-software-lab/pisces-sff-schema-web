@@ -12,6 +12,7 @@ import sys
 import re
 import numpy as np
 
+from collections import deque
 from types import FunctionType
 
 from thermosteam import Reaction, ReactionSet, SeriesReaction, ParallelReaction
@@ -30,6 +31,8 @@ def _json_default(value):
         return value.item()
     if isinstance(value, np.ndarray):
         return value.tolist()
+    if isinstance(value, deque):
+        return list(value)
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 #%% Entry-point export function

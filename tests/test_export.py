@@ -4,6 +4,7 @@ import sys
 import tempfile
 import types
 import unittest
+from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -112,11 +113,14 @@ class ExportVersionTest(unittest.TestCase):
                 return [1.0, 2.0]
 
         encoded = json.dumps(
-            {"scalar": Scalar(), "array": Array()},
+            {"scalar": Scalar(), "array": Array(), "queue": deque(["a", "b"])},
             default=export_module._json_default,
         )
 
-        self.assertEqual(json.loads(encoded), {"scalar": 1.25, "array": [1.0, 2.0]})
+        self.assertEqual(
+            json.loads(encoded),
+            {"scalar": 1.25, "array": [1.0, 2.0], "queue": ["a", "b"]},
+        )
         self.assertNotIn("breakpoint()", (ROOT / "pisces_sff/_export.py").read_text())
 
 
