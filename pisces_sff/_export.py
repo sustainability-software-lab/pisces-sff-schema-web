@@ -356,18 +356,32 @@ def get_composition(stream,
     return comp
 
 
+def _top_level_reactions(unit):
+    """Return each top-level reaction once in deterministic attribute order."""
+    rxntypes = (Reaction, ReactionSet)
+    discovered = []
+    seen = set()
+    for value in unit.__dict__.values():
+        if isinstance(value, rxntypes) and id(value) not in seen:
+            discovered.append(value)
+            seen.add(id(value))
+    discovered_set = set(discovered)
+    top_level = []
+    for reaction in discovered:
+        parent = getattr(reaction, '_parent', None)
+        if parent is None and hasattr(reaction, '_parent_index'):
+            parent, _ = reaction._parent_index
+        if parent in discovered_set:
+            continue
+        top_level.append(reaction)
+    return top_level
+
+
 def get_reactions(unit, stoichiometry): # !!! update -- fix order of reactions (potentially using settrace)
     u = unit
-    rxntypes = (Reaction, ReactionSet)
-    all_reactions = {rxn for rxn in u.__dict__.values() if isinstance(rxn, rxntypes)}
+    all_reactions = _top_level_reactions(u)
     reactions = []
-    for rxn in tuple(all_reactions):
-        if hasattr(rxn, '_parent'):
-            if rxn._parent in all_reactions: all_reactions.discard(rxn)
-        elif hasattr(rxn, '_parent_index'):
-            parent, index = rxn._parent_index
-            if parent in all_reactions: all_reactions.discard(rxn)
-    
+
     i = 0
     for rxn in all_reactions:
         if isinstance(rxn, (SeriesReaction, ParallelReaction)):

@@ -134,6 +134,18 @@ class ExportVersionTest(unittest.TestCase):
         source = (ROOT / "pisces_sff/_export.py").read_text()
         self.assertIn("allow_nan=False", source)
 
+    def test_top_level_reactions_are_deduplicated_in_attribute_order(self):
+        export_module = load_export_module()
+        parent = export_module.ReactionSet()
+        child = export_module.Reaction()
+        child._parent = parent
+        standalone = export_module.Reaction()
+        unit = SimpleNamespace(child=child, parent=parent, duplicate=parent, standalone=standalone)
+
+        reactions = export_module._top_level_reactions(unit)
+
+        self.assertEqual(reactions, [parent, standalone])
+
 
 if __name__ == "__main__":
     unittest.main()
