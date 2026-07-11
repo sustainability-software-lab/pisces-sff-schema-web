@@ -580,7 +580,13 @@ def get_design_input_specs(unit):
     for p in param_names:
         if hasattr(unit, p):
             try:
-                exec(f'dis[p] = unit.{p}')
+                # getattr(unit, p) reads the attribute directly. This replaces an
+                # earlier `exec(f'dis[p] = unit.{p}')`: because `p` is always one
+                # of the fixed param_names above, building and running a code
+                # string bought nothing over a plain attribute read, while exec
+                # is slower and executes an interpolated string (an injection
+                # footgun if param_names ever became caller-supplied).
+                dis[p] = getattr(unit, p)
             except Exception:
                 # These design inputs are all optional and unit-type specific;
                 # reading one can fail (e.g. a property raises for this unit).
