@@ -73,6 +73,32 @@ class ExportVersionTest(unittest.TestCase):
 
         self.assertEqual(document["metadata"]["sff_version"], "0.0.5")
 
+    def test_composition_normalizes_only_positive_exported_components(self):
+        export_module = load_export_module()
+        chemicals = [
+            SimpleNamespace(ID="Water"),
+            SimpleNamespace(ID="Ethanol"),
+            SimpleNamespace(ID="NumericalResidual"),
+        ]
+        phase = SimpleNamespace(
+            imol={"Water": 2.0, "Ethanol": 3.0, "NumericalResidual": -1.0},
+            imass={"Water": 36.0, "Ethanol": 138.0, "NumericalResidual": -10.0},
+        )
+        stream = SimpleNamespace(
+            phases=("l",),
+            chemicals=chemicals,
+            __getitem__=lambda _self, _phase: phase,
+        )
+        stream = type("Stream", (), dict(vars(stream)))()
+
+        composition = export_module.get_composition(stream)
+
+        self.assertEqual([item["component_name"] for item in composition], ["Water", "Ethanol"])
+        self.assertAlmostEqual(sum(item["mol_fraction"] for item in composition), 1.0)
+        self.assertAlmostEqual(sum(item["mass_fraction"] for item in composition), 1.0)
+        self.assertAlmostEqual(composition[0]["mol_fraction"], 2.0 / 5.0)
+        self.assertAlmostEqual(composition[0]["mass_fraction"], 36.0 / 174.0)
+
 
 if __name__ == "__main__":
     unittest.main()

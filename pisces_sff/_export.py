@@ -313,16 +313,20 @@ def get_composition(stream,
     comp = []
     for p in phases:
         sp = s[p]
+        positive_moles = {c: sp.imol[c] for c in chem_IDs if sp.imol[c] > 0}
+        positive_masses = {c: sp.imass[c] for c in chem_IDs if sp.imass[c] > 0}
+        total_positive_moles = sum(positive_moles.values())
+        total_positive_mass = sum(positive_masses.values())
         for c in chem_IDs:
-            if sp.imol[c]>0:
+            if c in positive_moles:
                 comp.append({'phase':p, 'component_name':c})
                 if units in ('mol%',):
-                    comp[-1]['mol_fraction'] = sp.imol[c]/sp.F_mol
+                    comp[-1]['mol_fraction'] = positive_moles[c]/total_positive_moles
                 elif units in ('mass%',):
-                    comp[-1]['mass_fraction'] = sp.imass[c]/sp.F_mass
+                    comp[-1]['mass_fraction'] = positive_masses.get(c, 0.)/total_positive_mass
                 elif units in ('both',):
-                    comp[-1]['mol_fraction'] = sp.imol[c]/sp.F_mol
-                    comp[-1]['mass_fraction'] = sp.imass[c]/sp.F_mass
+                    comp[-1]['mol_fraction'] = positive_moles[c]/total_positive_moles
+                    comp[-1]['mass_fraction'] = positive_masses.get(c, 0.)/total_positive_mass
     return comp
 
 
