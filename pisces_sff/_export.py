@@ -51,10 +51,13 @@ def _finite_mapping(mapping):
     """Drop keys whose numeric value is undefined (NaN/inf).
 
     Some BioSTEAM cost/design results are NaN or infinity when a unit is not
-    fully specified. The SFF schema has no representation for those, and JSON has
-    no standard NaN token, so we omit the key entirely rather than emit an invalid
-    number. Non-numeric values pass through untouched; the `allow_nan=False` guard
-    on json.dump is the backstop that fails loudly on any non-finite value we miss.
+    fully specified. We omit the key rather than substitute a value because the
+    schema types these results as `number`: NaN has no JSON numeric literal, and
+    `null` is not a `number`, so both would fail validation. A missing optional
+    key does validate, and it correctly means "not computed" rather than
+    "explicitly none". Non-numeric values pass through untouched; the
+    `allow_nan=False` guard on json.dump is the backstop that fails loudly on any
+    non-finite value we miss.
     """
     return {
         key: value
@@ -117,7 +120,10 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                 "thermo_property_package": get_thermo(ru),
                 "reactions": get_reactions(ru, stoichiometry=stoichiometry),
                 # _finite_mapping strips NaN/inf entries these BioSTEAM result dicts
-                # can hold for under-specified units, which JSON cannot represent.
+                # can hold for under-specified units. The schema types cost values
+                # as `number`, so neither NaN (no JSON numeric literal) nor `null`
+                # (not a `number`) would validate; a missing optional key does, and
+                # it correctly reads as "not computed" rather than "explicitly none".
                 "design_results": _finite_mapping(ru.design_results) if hasattr(ru, 'design_results') else {},
                 "installed_costs": _finite_mapping(ru.installed_costs) if hasattr(ru, 'installed_costs') else {},
                 "purchase_costs": _finite_mapping(ru.purchase_costs) if hasattr(ru, 'purchase_costs') else {},
