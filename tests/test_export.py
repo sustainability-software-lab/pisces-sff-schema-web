@@ -13,7 +13,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_export_module():
+def load_export_module(sff_version="0.0.5"):
+    package = types.ModuleType("pisces_sff")
+    package.__path__ = [str(ROOT / "pisces_sff")]
+
+    version_module = types.ModuleType("pisces_sff._version")
+    version_module.CURRENT_SFF_VERSION = sff_version
+
     thermosteam = types.ModuleType("thermosteam")
     thermosteam.Reaction = type("Reaction", (), {})
     thermosteam.ReactionSet = type("ReactionSet", (), {})
@@ -35,13 +41,15 @@ def load_export_module():
     numpy.ndarray = type("ndarray", (), {})
 
     modules = {
+        "pisces_sff": package,
+        "pisces_sff._version": version_module,
         "numpy": numpy,
         "thermosteam": thermosteam,
         "thermosteam.reaction": reaction_package,
         "thermosteam.reaction._reaction": reaction_module,
         "biosteam": biosteam,
     }
-    spec = importlib.util.spec_from_file_location("pisces_sff_export_test", ROOT / "pisces_sff/_export.py")
+    spec = importlib.util.spec_from_file_location("pisces_sff._export", ROOT / "pisces_sff/_export.py")
     module = importlib.util.module_from_spec(spec)
     with patch.dict(sys.modules, modules):
         spec.loader.exec_module(module)
@@ -74,6 +82,32 @@ class ExportVersionTest(unittest.TestCase):
             document = json.loads(output.read_text())
 
         self.assertEqual(document["metadata"]["sff_version"], "0.0.5")
+
+    def test_export_stamp_uses_central_version_authority(self):
+        export_module = load_export_module(sff_version="9.9.9")
+        chemical = SimpleNamespace(ID="Water", formula="H2O", CAS="7732-18-5", MW=18.015)
+        stream = SimpleNamespace(
+            ID="feed",
+            source=None,
+            sink=None,
+            chemicals=[chemical],
+            vle_chemicals=[chemical],
+        )
+        system = SimpleNamespace(
+            flowsheet=SimpleNamespace(),
+            units=[],
+            streams=[stream],
+            feeds=[],
+            products=[],
+            TEA=SimpleNamespace(duration=(2025, 2045)),
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "export.json"
+            export_module.export_biosteam_flowsheet_sff_0_0_5(system, output)
+            document = json.loads(output.read_text())
+
+        self.assertEqual(document["metadata"]["sff_version"], "9.9.9")
 
     def test_composition_normalizes_only_positive_exported_components(self):
         export_module = load_export_module()
