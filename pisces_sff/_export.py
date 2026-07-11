@@ -44,7 +44,7 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     
     ## ------- Metadata ------- ## 
     metadata = {}
-    metadata['sff_version'] = '0.0.3'
+    metadata['sff_version'] = '0.0.5'
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
                                      'version': bst.__version__}
