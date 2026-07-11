@@ -23,6 +23,15 @@ import biosteam as bst
 
 __all__ = ('export_biosteam_flowsheet',)
 
+
+def _json_default(value):
+    """Convert NumPy values emitted by BioSTEAM to JSON-native values."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
 #%% Entry-point export function
 
 def export_biosteam_flowsheet(sys, filepath, sff_version, **kwargs):
@@ -105,7 +114,7 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
             if 'liquid molar volume method' in str(e).lower():
                 pass
             else:
-                breakpoint()
+                raise
         streams.append(stream)
     
     ## ------ Chemicals ------ ##
@@ -172,11 +181,8 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                           "power_utilities": power_utilities,
                                           "other_utilities": other_utilities},
                            }
-    try:
-        with open(filepath, "w") as json_file:
-            json.dump(flowsheet_to_export, json_file, indent=4)
-    except:
-        breakpoint()
+    with open(filepath, "w") as json_file:
+        json.dump(flowsheet_to_export, json_file, indent=4, default=_json_default)
         
 #%% Helper functions
 
@@ -489,6 +495,6 @@ def get_design_input_specs(unit): # !!! update
         if hasattr(unit, p):
             try:
                 exec(f'dis[p] = unit.{p}')
-            except:
-                breakpoint()
+            except Exception:
+                continue
     return dis

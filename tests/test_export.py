@@ -30,6 +30,7 @@ def load_export_module():
     biosteam.__version__ = "test"
 
     numpy = types.ModuleType("numpy")
+    numpy.generic = type("generic", (), {})
     numpy.ndarray = type("ndarray", (), {})
 
     modules = {
@@ -98,6 +99,25 @@ class ExportVersionTest(unittest.TestCase):
         self.assertAlmostEqual(sum(item["mass_fraction"] for item in composition), 1.0)
         self.assertAlmostEqual(composition[0]["mol_fraction"], 2.0 / 5.0)
         self.assertAlmostEqual(composition[0]["mass_fraction"], 36.0 / 174.0)
+
+    def test_json_default_converts_numpy_values_without_debugger_fallbacks(self):
+        export_module = load_export_module()
+
+        class Scalar(export_module.np.generic):
+            def item(self):
+                return 1.25
+
+        class Array(export_module.np.ndarray):
+            def tolist(self):
+                return [1.0, 2.0]
+
+        encoded = json.dumps(
+            {"scalar": Scalar(), "array": Array()},
+            default=export_module._json_default,
+        )
+
+        self.assertEqual(json.loads(encoded), {"scalar": 1.25, "array": [1.0, 2.0]})
+        self.assertNotIn("breakpoint()", (ROOT / "pisces_sff/_export.py").read_text())
 
 
 if __name__ == "__main__":
