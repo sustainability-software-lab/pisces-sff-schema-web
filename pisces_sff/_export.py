@@ -30,18 +30,32 @@ __all__ = ('export_biosteam_flowsheet',)
 
 
 def _json_default(value):
-    """Convert NumPy values emitted by BioSTEAM to JSON-native values."""
-    if isinstance(value, np.generic):
+    """Convert NumPy values emitted by BioSTEAM to JSON-native values.
+
+    BioSTEAM stores results as NumPy scalars/arrays (and occasionally a deque),
+    which json.dump cannot serialize on its own. Passed as json.dump(default=...),
+    this is called only for those non-native objects and hands back a plain
+    Python equivalent. Unknown types raise TypeError instead of silently
+    producing a broken document, so a new container surfaces loudly.
+    """
+    if isinstance(value, np.generic):      # NumPy scalar (e.g. np.float64) -> Python scalar
         return value.item()
-    if isinstance(value, np.ndarray):
+    if isinstance(value, np.ndarray):      # NumPy array -> nested list
         return value.tolist()
-    if isinstance(value, deque):
+    if isinstance(value, deque):           # collections.deque -> list (seen in the acTAG model)
         return list(value)
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 def _finite_mapping(mapping):
-    """Omit undefined numeric results instead of emitting non-standard NaN tokens."""
+    """Drop keys whose numeric value is undefined (NaN/inf).
+
+    Some BioSTEAM cost/design results are NaN or infinity when a unit is not
+    fully specified. The SFF schema has no representation for those, and JSON has
+    no standard NaN token, so we omit the key entirely rather than emit an invalid
+    number. Non-numeric values pass through untouched; the `allow_nan=False` guard
+    on json.dump is the backstop that fails loudly on any non-finite value we miss.
+    """
     return {
         key: value
         for key, value in mapping.items()
@@ -69,6 +83,9 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     
     ## ------- Metadata ------- ## 
     metadata = {}
+    # Stamp the real emitted version. This entry point was hardcoding '0.0.3'
+    # while producing v0.0.5 output; sourcing the single CURRENT_SFF_VERSION
+    # constant keeps the stamp honest and updatable in one place.
     metadata['sff_version'] = CURRENT_SFF_VERSION
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
@@ -99,6 +116,8 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                 "design_simulation_method": get_design_simulation_method(ru),
                 "thermo_property_package": get_thermo(ru),
                 "reactions": get_reactions(ru, stoichiometry=stoichiometry),
+                # _finite_mapping strips NaN/inf entries these BioSTEAM result dicts
+                # can hold for under-specified units, which JSON cannot represent.
                 "design_results": _finite_mapping(ru.design_results) if hasattr(ru, 'design_results') else {},
                 "installed_costs": _finite_mapping(ru.installed_costs) if hasattr(ru, 'installed_costs') else {},
                 "purchase_costs": _finite_mapping(ru.purchase_costs) if hasattr(ru, 'purchase_costs') else {},
@@ -127,6 +146,10 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
         try:
             stream["stream_properties"]["total_volumetric_flow"] = {"value": rs.F_vol, "units": "m3/h"}
         except Exception as e:
+            # Volumetric flow is optional: some streams legitimately lack a liquid
+            # molar volume method, so that one known case is skipped. Any other
+            # failure is a real bug and re-raised (this previously dropped into an
+            # interactive debugger, which hangs an unattended export).
             if 'liquid molar volume method' in str(e).lower():
                 pass
             else:
@@ -197,6 +220,11 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                           "power_utilities": power_utilities,
                                           "other_utilities": other_utilities},
                            }
+    # Write the document, or fail loudly. Previously a bare `except` swallowed
+    # every write error into an interactive debugger, which silently stalls an
+    # unattended export. `default=_json_default` converts BioSTEAM's NumPy/deque
+    # values; `allow_nan=False` makes json.dump raise on any NaN/inf that slipped
+    # past _finite_mapping, so we never emit non-standard JSON tokens.
     with open(filepath, "w") as json_file:
         json.dump(
             flowsheet_to_export,
@@ -369,14 +397,25 @@ def get_composition(stream,
 
 
 def _top_level_reactions(unit):
-    """Return each top-level reaction once in deterministic attribute order."""
+    """Return each top-level reaction once, in the unit's attribute order.
+
+    Why not the old `{rxn for rxn in ...}` set comprehension: iterating a set of
+    reaction objects yields them in hash (memory-address) order, so the same model
+    exported twice produced reactions in a different order and the JSON diffed for
+    no real reason. Walking `__dict__.values()` instead preserves the deterministic
+    order the attributes were defined in, which is what makes exports repeatable.
+    """
     rxntypes = (Reaction, ReactionSet)
+    # Collect reactions in attribute order, de-duplicating by identity (id) so a
+    # reaction referenced under two attribute names is listed only once.
     discovered = []
     seen = set()
     for value in unit.__dict__.values():
         if isinstance(value, rxntypes) and id(value) not in seen:
             discovered.append(value)
             seen.add(id(value))
+    # Keep only the outermost reactions: a reaction whose parent set/reaction is
+    # itself in `discovered` is a nested child and would otherwise be emitted twice.
     discovered_set = set(discovered)
     top_level = []
     for reaction in discovered:
@@ -389,8 +428,9 @@ def _top_level_reactions(unit):
     return top_level
 
 
-def get_reactions(unit, stoichiometry): # !!! update -- fix order of reactions (potentially using settrace)
+def get_reactions(unit, stoichiometry):
     u = unit
+    # Deterministic, de-duplicated top-level reactions (see _top_level_reactions).
     all_reactions = _top_level_reactions(u)
     reactions = []
 
@@ -531,9 +571,9 @@ def get_design_simulation_method(unit):
     return classname + ' on ' + link_address
 
 
-def get_design_input_specs(unit): # !!! update
-    param_names = ('LHK', 'Lr', 'Hr', 'x_bot', 'y_top', 'k', 
-                   'T', 'P', 
+def get_design_input_specs(unit):
+    param_names = ('LHK', 'Lr', 'Hr', 'x_bot', 'y_top', 'k',
+                   'T', 'P',
                    'V', 'V_wf',
                    'tau',)
     dis = {}
@@ -542,5 +582,9 @@ def get_design_input_specs(unit): # !!! update
             try:
                 exec(f'dis[p] = unit.{p}')
             except Exception:
+                # These design inputs are all optional and unit-type specific;
+                # reading one can fail (e.g. a property raises for this unit).
+                # Skip the missing spec rather than dropping into an interactive
+                # debugger, which previously froze an unattended export.
                 continue
     return dis
