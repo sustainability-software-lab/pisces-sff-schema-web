@@ -13,6 +13,8 @@ import re
 import numpy as np
 
 from collections import deque
+from math import isfinite
+from numbers import Real
 from types import FunctionType
 
 from thermosteam import Reaction, ReactionSet, SeriesReaction, ParallelReaction
@@ -34,6 +36,15 @@ def _json_default(value):
     if isinstance(value, deque):
         return list(value)
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _finite_mapping(mapping):
+    """Omit undefined numeric results instead of emitting non-standard NaN tokens."""
+    return {
+        key: value
+        for key, value in mapping.items()
+        if not isinstance(value, Real) or isfinite(value)
+    }
 
 #%% Entry-point export function
 
@@ -86,9 +97,9 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                 "design_simulation_method": get_design_simulation_method(ru),
                 "thermo_property_package": get_thermo(ru),
                 "reactions": get_reactions(ru, stoichiometry=stoichiometry),
-                "design_results": ru.design_results if hasattr(ru, 'design_results') else {},
-                "installed_costs": ru.installed_costs if hasattr(ru, 'installed_costs') else {},
-                "purchase_costs": ru.purchase_costs if hasattr(ru, 'purchase_costs') else {},
+                "design_results": _finite_mapping(ru.design_results) if hasattr(ru, 'design_results') else {},
+                "installed_costs": _finite_mapping(ru.installed_costs) if hasattr(ru, 'installed_costs') else {},
+                "purchase_costs": _finite_mapping(ru.purchase_costs) if hasattr(ru, 'purchase_costs') else {},
                 "utility_consumption_results": u_cons,
                 "utility_production_results": u_prod,
                 }
@@ -185,7 +196,13 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                           "other_utilities": other_utilities},
                            }
     with open(filepath, "w") as json_file:
-        json.dump(flowsheet_to_export, json_file, indent=4, default=_json_default)
+        json.dump(
+            flowsheet_to_export,
+            json_file,
+            indent=4,
+            default=_json_default,
+            allow_nan=False,
+        )
         
 #%% Helper functions
 

@@ -123,6 +123,17 @@ class ExportVersionTest(unittest.TestCase):
         )
         self.assertNotIn("breakpoint()", (ROOT / "pisces_sff/_export.py").read_text())
 
+    def test_nonfinite_optional_results_are_omitted_and_json_is_strict(self):
+        export_module = load_export_module()
+
+        cleaned = export_module._finite_mapping(
+            {"Known cost": 125.0, "Undefined cost": float("nan")}
+        )
+
+        self.assertEqual(cleaned, {"Known cost": 125.0})
+        source = (ROOT / "pisces_sff/_export.py").read_text()
+        self.assertIn("allow_nan=False", source)
+
 
 if __name__ == "__main__":
     unittest.main()
