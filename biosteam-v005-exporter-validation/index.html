@@ -10,13 +10,9 @@
       
       
       
-        <link rel="canonical" href="https://sustainability-software-lab.github.io/pisces-standard-flowsheet-format-new/contributions/">
+        <link rel="canonical" href="https://sustainability-software-lab.github.io/pisces-standard-flowsheet-format-new/biosteam-v005-exporter-validation/">
       
       
-        <link rel="prev" href="../biosteam_export/">
-      
-      
-        <link rel="next" href="../extending/">
       
       
         
@@ -27,7 +23,7 @@
     
     
       
-        <title>Contributions - Standard Flowsheet Format (SFF)</title>
+        <title>BioSTEAM v0.0.5 exporter validation record - Standard Flowsheet Format (SFF)</title>
       
     
     
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#contributing-to-the-development-of-the-sff" class="md-skip">
+        <a href="#biosteam-v005-exporter-validation-record" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Contributions
+              BioSTEAM v0.0.5 exporter validation record
             
           </span>
         </div>
@@ -233,11 +229,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../contributions/" class="md-tabs__link">
         
   
   
@@ -412,37 +406,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contributions
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../contributions/" class="md-nav__link">
         
   
   
@@ -458,48 +425,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#authors-acknowledgements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Authors &amp; Acknowledgements
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Contributing
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -605,18 +530,72 @@
   
 
 
-<h1 id="contributing-to-the-development-of-the-sff">Contributing to the development of the SFF</h1>
-<h2 id="authors-acknowledgements">Authors &amp; Acknowledgements</h2>
-<p>Authors of the PISCES Standard Flowsheet Format (SFF) include:</p>
+<h1 id="biosteam-v005-exporter-validation-record">BioSTEAM v0.0.5 exporter validation record</h1>
+<p>This document holds the technical evidence for pull request #9.</p>
+<h2 id="why-this-exists">Why this exists</h2>
+<p>Project PISCES needs to regenerate 32 public BioSTEAM flowsheets in SFF v0.0.5. Fourteen older files have no chemicals catalog or molecular weights, so the website cannot reliably convert mole fractions to mass fractions.</p>
+<p>On <code>main</code>, the canonical v0.0.5 exporter labels its output as v0.0.3. Full-corpus testing also shows that some real BioSTEAM values can produce invalid JSON, fractions above one, or unstable reaction output. This PR fixes those boundaries so an export is valid and repeatable or fails with a useful exception.</p>
+<h2 id="what-the-pr-changes">What the PR changes</h2>
+<p><code>CURRENT_SFF_VERSION</code> is now the single version authority for both the package and exported metadata. This lets us update the version in one place when the standard advances.</p>
+<p>The exporter also:</p>
 <ul>
-<li><a href="https://github.com/sarangbhagwat">Sarang Bhagwat</a> (lead SFF author, developer, and maintainer; also led the development of the BioSTEAM SFF export)</li>
-<li><a href="https://eta.lbl.gov/people/corinne-scown">Corinne Scown</a> (led efforts to found, develop, coordinate, and expand the software)</li>
-<li><a href="https://github.com/tylerhuntington">Tyler Huntington</a> (integrated the SFF with the <a href="https://projectpisces.org/">Project PISCES website</a>, helped build the documentation, and led the development of the SuperPro SFF export)</li>
-<li><a href="https://eta.lbl.gov/people/yuting-chen">Yuting Chen</a> (built the LLM-based <a href="https://projectpisces.org/?page=extraction">literature-to-SFF extraction pipeline</a> and contributed general expertise through discussions)</li>
-<li><a href="https://github.com/mglbleta">Meili Gong</a> (contributed general expertise through discussions)</li>
+<li>normalizes only positive stream components included in the document;</li>
+<li>converts NumPy and <code>deque</code> values to ordinary JSON values;</li>
+<li>omits undefined optional numbers and rejects any remaining <code>NaN</code> or infinity;</li>
+<li>raises exceptions instead of opening an interactive debugger;</li>
+<li>emits each top-level reaction once, in unit attribute order.</li>
 </ul>
-<h2 id="contributing">Contributing</h2>
-<p>(Formal ways to contribute coming soon!)</p>
+<h2 id="what-development-testing-found">What development testing found</h2>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Finding and result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bffccf70</code></td>
+<td>The v0.0.5 entry point stamped <code>0.0.3</code>. The first regression test caught the mismatch.</td>
+</tr>
+<tr>
+<td><code>05f6c4b2</code>, <code>22220e99</code></td>
+<td>Corpus testing found negative solver residue and NumPy values at the JSON boundary. The fixes normalize exported components and convert NumPy values.</td>
+</tr>
+<tr>
+<td><code>f57d3296</code></td>
+<td>The cellulosic acTAG model exposed a <code>collections.deque</code>; the exporter now converts it to a list.</td>
+</tr>
+<tr>
+<td>Build <code>e3158dd6</code></td>
+<td>All 32 models ran, but strict parsing found two <code>NaN</code> vessel-cost values in <code>bfg_oleochemical</code>.</td>
+</tr>
+<tr>
+<td><code>22914bab</code>, build <code>e2af8f33</code></td>
+<td>The exporter began omitting undefined optional numbers and rejecting non-standard JSON. The next 32-model run passed.</td>
+</tr>
+<tr>
+<td><code>a786c311</code></td>
+<td>Comparing successful runs exposed hash-order-dependent reaction output. Reaction discovery now preserves attribute order.</td>
+</tr>
+<tr>
+<td>Build <code>e8994df8-b48b-4875-8533-d8b4bc2e5b58</code></td>
+<td>The final exporter-code run completed 32/32 models with zero failures. Every file passed the v0.0.5 schema, strict JSON parsing, and positive finite molecular-weight checks.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="current-proof">Current proof</h2>
+<p>Six dependency-isolated tests cover the central version authority, metadata stamp, composition normalization, JSON conversion, finite-number enforcement, and reaction ordering.</p>
+<p>Build <code>e8994df8-b48b-4875-8533-d8b4bc2e5b58</code> tests the exporter behavior at <code>a786c311</code>. The later version-authority refactor changes where the same <code>0.0.5</code> value comes from and is covered by the sixth unit test.</p>
+<p>Project PISCES frontend pull request <a href="https://github.com/sustainability-software-lab/project-pisces-frontend/pull/4671">#4671</a> contains the regenerated corpus, schema support, data migration, and website regression tests. After this PR merges, that branch pins the merge SHA and reruns all 32 exports before landing.</p>
+<h2 id="review-focus">Review focus</h2>
+<ol>
+<li>Does one constant control both package and export versions?</li>
+<li>Do composition fractions use only exported components?</li>
+<li>Does the JSON boundary convert known containers and reject unknown ones?</li>
+<li>Are undefined optional numbers omitted while other non-finite values fail?</li>
+<li>Does reaction discovery preserve order and remove only nested duplicates?</li>
+</ol>
 
 
 
