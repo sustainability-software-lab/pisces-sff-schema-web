@@ -675,8 +675,9 @@
 <li><strong>TEA_year</strong>: The baseline year used for calculating costs. <em>(Required)</em></li>
 <li><strong>source_doi</strong>: A digital object identifier pointing to the publication where the process was introduced.</li>
 <li><strong>process_title</strong>: Title of the process flowsheet.</li>
-<li><strong>product_name</strong>: Primary product being manufactured.</li>
-<li><strong>organism</strong>: Organism used for bioproduction, if applicable.</li>
+<li><strong>feedstocks</strong>: Feedstock material streams for this flowsheet, each with a required <code>stream_id</code> and an optional <code>display_name</code>. <em>(Required)</em></li>
+<li><strong>products</strong>: Product and co-product material streams for this flowsheet, each with a required <code>stream_id</code> and an optional <code>display_name</code>. <em>(Required)</em></li>
+<li><strong>microorganisms</strong>: Microbial hosts used for bioproduction, if applicable. Represented as a list (not a single string) so that co-cultures and multi-host processes can each be a distinct entry; every entry has a required <code>name</code> and an optional <code>label</code>.</li>
 <li><strong>flowsheet_designers</strong>: Authors who designed the simulation.</li>
 </ul>
 <hr />
