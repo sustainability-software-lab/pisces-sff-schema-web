@@ -8,4 +8,4 @@
 
 """Single source of truth for the current SFF version."""
 
-CURRENT_SFF_VERSION = "0.0.6"
+CURRENT_SFF_VERSION = "0.0.5"
