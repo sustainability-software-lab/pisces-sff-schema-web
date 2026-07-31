@@ -1,0 +1,36 @@
+name: Release consistency
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify release identifiers
+        shell: bash
+        run: |
+          args=()
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            args+=(--tag "${GITHUB_REF_NAME}")
+          fi
+          python scripts/check_release_consistency.py "${args[@]}"
+
+      - name: Run dependency-isolated tests
+        run: python -m unittest discover -s tests -v

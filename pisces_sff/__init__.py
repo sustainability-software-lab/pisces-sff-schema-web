@@ -7,7 +7,9 @@
 # for license details.
 
 from __future__ import annotations
-__version__ = '0.0.5'
+from ._version import CURRENT_SFF_VERSION
+
+__version__ = CURRENT_SFF_VERSION
 
 from . import _export
 from ._export import *

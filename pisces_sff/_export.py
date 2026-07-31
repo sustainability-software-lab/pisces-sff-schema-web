@@ -12,6 +12,9 @@ import sys
 import re
 import numpy as np
 
+from collections import deque
+from math import isfinite
+from numbers import Real
 from types import FunctionType
 
 from thermosteam import Reaction, ReactionSet, SeriesReaction, ParallelReaction
@@ -21,7 +24,46 @@ from biosteam import PowerUtility, System
 
 import biosteam as bst
 
+from ._version import CURRENT_SFF_VERSION
+
 __all__ = ('export_biosteam_flowsheet',)
+
+
+def _json_default(value):
+    """Convert NumPy values emitted by BioSTEAM to JSON-native values.
+
+    BioSTEAM stores results as NumPy scalars/arrays (and occasionally a deque),
+    which json.dump cannot serialize on its own. Passed as json.dump(default=...),
+    this is called only for those non-native objects and hands back a plain
+    Python equivalent. Unknown types raise TypeError instead of silently
+    producing a broken document, so a new container surfaces loudly.
+    """
+    if isinstance(value, np.generic):      # NumPy scalar (e.g. np.float64) -> Python scalar
+        return value.item()
+    if isinstance(value, np.ndarray):      # NumPy array -> nested list
+        return value.tolist()
+    if isinstance(value, deque):           # collections.deque -> list (seen in the acTAG model)
+        return list(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _finite_mapping(mapping):
+    """Drop keys whose numeric value is undefined (NaN/inf).
+
+    Some BioSTEAM cost/design results are NaN or infinity when a unit is not
+    fully specified. We omit the key rather than substitute a value because the
+    schema types these results as `number`: NaN has no JSON numeric literal, and
+    `null` is not a `number`, so both would fail validation. A missing optional
+    key does validate, and it correctly means "not computed" rather than
+    "explicitly none". Non-numeric values pass through untouched; the
+    `allow_nan=False` guard on json.dump is the backstop that fails loudly on any
+    non-finite value we miss.
+    """
+    return {
+        key: value
+        for key, value in mapping.items()
+        if not isinstance(value, Real) or isfinite(value)
+    }
 
 #%% Entry-point export function
 
@@ -44,7 +86,10 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     
     ## ------- Metadata ------- ## 
     metadata = {}
-    metadata['sff_version'] = '0.0.3'
+    # Stamp the real emitted version. This entry point was hardcoding '0.0.3'
+    # while producing v0.0.5 output; sourcing the single CURRENT_SFF_VERSION
+    # constant keeps the stamp honest and updatable in one place.
+    metadata['sff_version'] = CURRENT_SFF_VERSION
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
                                      'version': bst.__version__}
@@ -74,9 +119,14 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                 "design_simulation_method": get_design_simulation_method(ru),
                 "thermo_property_package": get_thermo(ru),
                 "reactions": get_reactions(ru, stoichiometry=stoichiometry),
-                "design_results": ru.design_results if hasattr(ru, 'design_results') else {},
-                "installed_costs": ru.installed_costs if hasattr(ru, 'installed_costs') else {},
-                "purchase_costs": ru.purchase_costs if hasattr(ru, 'purchase_costs') else {},
+                # _finite_mapping strips NaN/inf entries these BioSTEAM result dicts
+                # can hold for under-specified units. The schema types cost values
+                # as `number`, so neither NaN (no JSON numeric literal) nor `null`
+                # (not a `number`) would validate; a missing optional key does, and
+                # it correctly reads as "not computed" rather than "explicitly none".
+                "design_results": _finite_mapping(ru.design_results) if hasattr(ru, 'design_results') else {},
+                "installed_costs": _finite_mapping(ru.installed_costs) if hasattr(ru, 'installed_costs') else {},
+                "purchase_costs": _finite_mapping(ru.purchase_costs) if hasattr(ru, 'purchase_costs') else {},
                 "utility_consumption_results": u_cons,
                 "utility_production_results": u_prod,
                 }
@@ -102,10 +152,14 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
         try:
             stream["stream_properties"]["total_volumetric_flow"] = {"value": rs.F_vol, "units": "m3/h"}
         except Exception as e:
+            # Volumetric flow is optional: some streams legitimately lack a liquid
+            # molar volume method, so that one known case is skipped. Any other
+            # failure is a real bug and re-raised (this previously dropped into an
+            # interactive debugger, which hangs an unattended export).
             if 'liquid molar volume method' in str(e).lower():
                 pass
             else:
-                breakpoint()
+                raise
         streams.append(stream)
     
     ## ------ Chemicals ------ ##
@@ -172,11 +226,19 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                           "power_utilities": power_utilities,
                                           "other_utilities": other_utilities},
                            }
-    try:
-        with open(filepath, "w") as json_file:
-            json.dump(flowsheet_to_export, json_file, indent=4)
-    except:
-        breakpoint()
+    # Write the document, or fail loudly. Previously a bare `except` swallowed
+    # every write error into an interactive debugger, which silently stalls an
+    # unattended export. `default=_json_default` converts BioSTEAM's NumPy/deque
+    # values; `allow_nan=False` makes json.dump raise on any NaN/inf that slipped
+    # past _finite_mapping, so we never emit non-standard JSON tokens.
+    with open(filepath, "w") as json_file:
+        json.dump(
+            flowsheet_to_export,
+            json_file,
+            indent=4,
+            default=_json_default,
+            allow_nan=False,
+        )
         
 #%% Helper functions
 
@@ -313,31 +375,71 @@ def get_composition(stream,
     comp = []
     for p in phases:
         sp = s[p]
+        # Normalize against only the components we actually emit (positive flow),
+        # NOT stream totals sp.F_mol / sp.F_mass. Solver convergence can leave tiny
+        # negative residue flows, which shrink the stream total below the sum of the
+        # positive components; dividing by that smaller total yields fractions > 1.0
+        # that fail schema validation. Summing the emitted components instead
+        # guarantees each fraction is in [0, 1] and the listed ones sum to 1.
+        positive_moles = {c: sp.imol[c] for c in chem_IDs if sp.imol[c] > 0}
+        positive_masses = {c: sp.imass[c] for c in chem_IDs if sp.imass[c] > 0}
+        total_positive_moles = sum(positive_moles.values())
+        total_positive_mass = sum(positive_masses.values())
         for c in chem_IDs:
-            if sp.imol[c]>0:
+            # Emit a component only when it carries positive moles, matching the
+            # denominator set above so the reported fractions stay self-consistent.
+            if c in positive_moles:
                 comp.append({'phase':p, 'component_name':c})
                 if units in ('mol%',):
-                    comp[-1]['mol_fraction'] = sp.imol[c]/sp.F_mol
+                    comp[-1]['mol_fraction'] = positive_moles[c]/total_positive_moles
                 elif units in ('mass%',):
-                    comp[-1]['mass_fraction'] = sp.imass[c]/sp.F_mass
+                    # .get(c, 0.): a component can have positive moles but no recorded
+                    # mass; treat missing mass as 0 rather than raising a KeyError.
+                    comp[-1]['mass_fraction'] = positive_masses.get(c, 0.)/total_positive_mass
                 elif units in ('both',):
-                    comp[-1]['mol_fraction'] = sp.imol[c]/sp.F_mol
-                    comp[-1]['mass_fraction'] = sp.imass[c]/sp.F_mass
+                    comp[-1]['mol_fraction'] = positive_moles[c]/total_positive_moles
+                    comp[-1]['mass_fraction'] = positive_masses.get(c, 0.)/total_positive_mass
     return comp
 
 
-def get_reactions(unit, stoichiometry): # !!! update -- fix order of reactions (potentially using settrace)
-    u = unit
+def _top_level_reactions(unit):
+    """Return each top-level reaction once, in the unit's attribute order.
+
+    Why not the old `{rxn for rxn in ...}` set comprehension: iterating a set of
+    reaction objects yields them in hash (memory-address) order, so the same model
+    exported twice produced reactions in a different order and the JSON diffed for
+    no real reason. Walking `__dict__.values()` instead preserves the deterministic
+    order the attributes were defined in, which is what makes exports repeatable.
+    """
     rxntypes = (Reaction, ReactionSet)
-    all_reactions = {rxn for rxn in u.__dict__.values() if isinstance(rxn, rxntypes)}
+    # Collect reactions in attribute order, de-duplicating by identity (id) so a
+    # reaction referenced under two attribute names is listed only once.
+    discovered = []
+    seen = set()
+    for value in unit.__dict__.values():
+        if isinstance(value, rxntypes) and id(value) not in seen:
+            discovered.append(value)
+            seen.add(id(value))
+    # Keep only the outermost reactions: a reaction whose parent set/reaction is
+    # itself in `discovered` is a nested child and would otherwise be emitted twice.
+    discovered_set = set(discovered)
+    top_level = []
+    for reaction in discovered:
+        parent = getattr(reaction, '_parent', None)
+        if parent is None and hasattr(reaction, '_parent_index'):
+            parent, _ = reaction._parent_index
+        if parent in discovered_set:
+            continue
+        top_level.append(reaction)
+    return top_level
+
+
+def get_reactions(unit, stoichiometry):
+    u = unit
+    # Deterministic, de-duplicated top-level reactions (see _top_level_reactions).
+    all_reactions = _top_level_reactions(u)
     reactions = []
-    for rxn in tuple(all_reactions):
-        if hasattr(rxn, '_parent'):
-            if rxn._parent in all_reactions: all_reactions.discard(rxn)
-        elif hasattr(rxn, '_parent_index'):
-            parent, index = rxn._parent_index
-            if parent in all_reactions: all_reactions.discard(rxn)
-    
+
     i = 0
     for rxn in all_reactions:
         if isinstance(rxn, (SeriesReaction, ParallelReaction)):
@@ -475,16 +577,26 @@ def get_design_simulation_method(unit):
     return classname + ' on ' + link_address
 
 
-def get_design_input_specs(unit): # !!! update
-    param_names = ('LHK', 'Lr', 'Hr', 'x_bot', 'y_top', 'k', 
-                   'T', 'P', 
+def get_design_input_specs(unit):
+    param_names = ('LHK', 'Lr', 'Hr', 'x_bot', 'y_top', 'k',
+                   'T', 'P',
                    'V', 'V_wf',
                    'tau',)
     dis = {}
     for p in param_names:
         if hasattr(unit, p):
             try:
-                exec(f'dis[p] = unit.{p}')
-            except:
-                breakpoint()
+                # getattr(unit, p) reads the attribute directly. This replaces an
+                # earlier `exec(f'dis[p] = unit.{p}')`: because `p` is always one
+                # of the fixed param_names above, building and running a code
+                # string bought nothing over a plain attribute read, while exec
+                # is slower and executes an interpolated string (an injection
+                # footgun if param_names ever became caller-supplied).
+                dis[p] = getattr(unit, p)
+            except Exception:
+                # These design inputs are all optional and unit-type specific;
+                # reading one can fail (e.g. a property raises for this unit).
+                # Skip the missing spec rather than dropping into an interactive
+                # debugger, which previously froze an unattended export.
+                continue
     return dis
