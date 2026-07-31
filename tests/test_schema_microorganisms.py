@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for the v0.0.5 `metadata.microorganisms` schema definition.
+# Tests for the v0.0.6 `metadata.microorganisms` schema definition.
 #
 # These tests exist to lock in the string -> list change for the microorganisms
 # field: it is now an array of {"name": str, "label"?: str} host objects rather
@@ -76,8 +76,8 @@ class TestMicroorganismsSchemaShape(unittest.TestCase):
 
     def test_field_is_optional_on_metadata(self):
         # microorganisms must NOT be in metadata.required: not every flowsheet
-        # involves a microbial host, and existing v0.0.5 exports never emitted
-        # the field. Keeping it optional preserves backward compatibility.
+        # involves a microbial host. Keeping it optional preserves backward
+        # compatibility with exports that have no host metadata.
         required = self.schema["properties"]["metadata"].get("required", [])
         self.assertNotIn("microorganisms", required)
 

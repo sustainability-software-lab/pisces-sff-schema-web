@@ -71,11 +71,41 @@ def export_biosteam_flowsheet(sys, filepath, sff_version, **kwargs):
     sff_version_formatted = sff_version.replace('.', '_')
     exec(f'export_biosteam_flowsheet_sff_{sff_version_formatted}(sys, filepath, **kwargs)')
 
-#%% Export function for SFF schema v0.0.5
+#%% Versioned BioSTEAM exporters
 def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                         stoichiometry="dict", # must be one of (None, "vector", "dict")
                                         composition_units="both", # "mol%", "mass%", or "both"
+                                        ):
+    return _export_biosteam_flowsheet_sff_current(
+        sys,
+        filepath,
+        schema_version="0.0.5",
+        tea=tea,
+        stoichiometry=stoichiometry,
+        composition_units=composition_units,
+    )
+
+
+def export_biosteam_flowsheet_sff_0_0_6(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
                                         microorganisms=None, # optional list of microbial hosts; see metadata section below
+                                        ):
+    return _export_biosteam_flowsheet_sff_current(
+        sys,
+        filepath,
+        schema_version=CURRENT_SFF_VERSION,
+        tea=tea,
+        stoichiometry=stoichiometry,
+        composition_units=composition_units,
+        microorganisms=microorganisms,
+    )
+
+
+def _export_biosteam_flowsheet_sff_current(sys, filepath, schema_version, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None,
                                         ):
     f = sys.flowsheet
     u, s = sys.units, sys.streams
@@ -87,10 +117,10 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     
     ## ------- Metadata ------- ## 
     metadata = {}
-    # Stamp the real emitted version. This entry point was hardcoding '0.0.3'
-    # while producing v0.0.5 output; sourcing the single CURRENT_SFF_VERSION
-    # constant keeps the stamp honest and updatable in one place.
-    metadata['sff_version'] = CURRENT_SFF_VERSION
+    # Keep older entry points honest after a newer schema ships. The current
+    # exporter receives CURRENT_SFF_VERSION while compatibility entry points
+    # pass their own immutable release version.
+    metadata['sff_version'] = schema_version
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
                                      'version': bst.__version__}
@@ -102,7 +132,7 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     # ------- Microorganisms (optional) -------
     # A BioSTEAM System does not carry any host-organism identity, so this value
     # cannot be inferred from `sys`; callers must supply it explicitly via the
-    # `microorganisms` argument. The v0.0.5 schema models this field as an array
+    # `microorganisms` argument. The v0.0.6 schema models this field as an array
     # of {"name": str, "label"?: str} objects (rather than a single string) so
     # that co-cultures and multi-host processes are each represented as distinct,
     # machine-readable entries. We normalize whatever the caller passes into that
@@ -113,8 +143,9 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     # at least one entry when present (minItems: 1), so emitting an empty list
     # would produce output that fails validation.
     if microorganisms:
+        hosts = [microorganisms] if isinstance(microorganisms, (str, dict)) else microorganisms
         normalized_hosts = []
-        for host in microorganisms:
+        for host in hosts:
             if isinstance(host, str):
                 normalized_hosts.append({"name": host})
             elif isinstance(host, dict) and host.get("name"):

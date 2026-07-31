@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/sustainability-software-lab/pisces-sff-schema-web/v0.0.5/pisces_sff/schema/sff_schema.json",
+  "$id": "https://raw.githubusercontent.com/sustainability-software-lab/pisces-sff-schema-web/v0.0.6/pisces_sff/schema/sff_schema.json",
   "title": "Standard Flowsheet Format (SFF)",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A standardized, machine-readable representation of a process flowsheet designed for interoperability and data exchange. It represents the process as a directed graph with rich data attached to both nodes (units) and edges (streams).",
   "type": "object",
   "properties": {

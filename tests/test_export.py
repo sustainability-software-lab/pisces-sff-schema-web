@@ -13,7 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_export_module(sff_version="0.0.5"):
+def load_export_module(sff_version="0.0.6"):
     package = types.ModuleType("pisces_sff")
     package.__path__ = [str(ROOT / "pisces_sff")]
 
@@ -56,58 +56,76 @@ def load_export_module(sff_version="0.0.5"):
     return module
 
 
+def minimal_system():
+    chemical = SimpleNamespace(ID="Water", formula="H2O", CAS="7732-18-5", MW=18.015)
+    stream = SimpleNamespace(
+        ID="feed",
+        source=None,
+        sink=None,
+        chemicals=[chemical],
+        vle_chemicals=[chemical],
+    )
+    return SimpleNamespace(
+        flowsheet=SimpleNamespace(),
+        units=[],
+        streams=[stream],
+        feeds=[],
+        products=[],
+        TEA=SimpleNamespace(duration=(2025, 2045)),
+    )
+
+
 class ExportVersionTest(unittest.TestCase):
-    def test_v005_export_stamps_v005(self):
+    def test_v006_export_stamps_v006(self):
         export_module = load_export_module()
-        chemical = SimpleNamespace(ID="Water", formula="H2O", CAS="7732-18-5", MW=18.015)
-        stream = SimpleNamespace(
-            ID="feed",
-            source=None,
-            sink=None,
-            chemicals=[chemical],
-            vle_chemicals=[chemical],
-        )
-        system = SimpleNamespace(
-            flowsheet=SimpleNamespace(),
-            units=[],
-            streams=[stream],
-            feeds=[],
-            products=[],
-            TEA=SimpleNamespace(duration=(2025, 2045)),
-        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "export.json"
-            export_module.export_biosteam_flowsheet(system, output, sff_version="0.0.5")
+            export_module.export_biosteam_flowsheet(
+                minimal_system(), output, sff_version="0.0.6"
+            )
+            document = json.loads(output.read_text())
+
+        self.assertEqual(document["metadata"]["sff_version"], "0.0.6")
+
+    def test_v005_compatibility_export_keeps_v005_stamp(self):
+        export_module = load_export_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "export.json"
+            export_module.export_biosteam_flowsheet(
+                minimal_system(), output, sff_version="0.0.5"
+            )
             document = json.loads(output.read_text())
 
         self.assertEqual(document["metadata"]["sff_version"], "0.0.5")
 
     def test_export_stamp_uses_central_version_authority(self):
         export_module = load_export_module(sff_version="9.9.9")
-        chemical = SimpleNamespace(ID="Water", formula="H2O", CAS="7732-18-5", MW=18.015)
-        stream = SimpleNamespace(
-            ID="feed",
-            source=None,
-            sink=None,
-            chemicals=[chemical],
-            vle_chemicals=[chemical],
-        )
-        system = SimpleNamespace(
-            flowsheet=SimpleNamespace(),
-            units=[],
-            streams=[stream],
-            feeds=[],
-            products=[],
-            TEA=SimpleNamespace(duration=(2025, 2045)),
-        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "export.json"
-            export_module.export_biosteam_flowsheet_sff_0_0_5(system, output)
+            export_module.export_biosteam_flowsheet_sff_0_0_6(minimal_system(), output)
             document = json.loads(output.read_text())
 
         self.assertEqual(document["metadata"]["sff_version"], "9.9.9")
+
+    def test_v006_export_normalizes_one_or_many_microorganisms(self):
+        export_module = load_export_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "export.json"
+            export_module.export_biosteam_flowsheet_sff_0_0_6(
+                minimal_system(),
+                output,
+                microorganisms=["E. coli", {"name": "P. putida", "label": "co-culture"}],
+            )
+            document = json.loads(output.read_text())
+
+        self.assertEqual(
+            document["metadata"]["microorganisms"],
+            [{"name": "E. coli"}, {"name": "P. putida", "label": "co-culture"}],
+        )
 
     def test_composition_normalizes_only_positive_exported_components(self):
         export_module = load_export_module()
