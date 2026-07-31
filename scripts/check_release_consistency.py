@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 VERSION_RE = re.compile(r'^CURRENT_SFF_VERSION\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
-REPOSITORY = "sustainability-software-lab/pisces-standard-flowsheet-format"
+REPOSITORY = "sustainability-software-lab/pisces-sff-schema-web"
 
 
 def expected_schema_id(version: str) -> str:
