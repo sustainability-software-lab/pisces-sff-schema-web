@@ -33,7 +33,7 @@ import yaml
 __all__ = ('export_model', 'ensure_environment', 'environment_key',
            'environment_name', 'canonical_environment_text', 'pip_requirements',
            'parse_pip_requirement', 'package_record', 'sha256_bytes',
-           'find_conda_exe')
+           'find_conda_exe', 'environment_python', 'export_lock', 'LOCK_PATH')
 
 #: Prefix for harness-created conda environments. The remainder of the name is
 #: the first 12 hex characters of the environment key.

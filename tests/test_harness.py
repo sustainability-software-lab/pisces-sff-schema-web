@@ -547,5 +547,35 @@ class TestExportModelInvocation(unittest.TestCase):
             )
 
 
+class TestProducedInterfaceIsExported(unittest.TestCase):
+    """Pins the "produced interface is exported" contract.
+
+    Every name this task's brief lists under Produces must both exist on the
+    loaded module and be listed in its __all__ -- otherwise `pisces_sff.X`
+    (via `from ._harness import *`) silently raises AttributeError for X even
+    though X is part of the harness's public interface. A future edit that
+    adds a function but forgets __all__ should fail here, not go unnoticed.
+    """
+
+    def setUp(self):
+        self.harness = load_harness()
+
+    def test_produced_names_are_attributes_and_in_all(self):
+        for name in (
+            "environment_python",
+            "export_lock",
+            "LOCK_PATH",
+            "export_model",
+            "ensure_environment",
+        ):
+            with self.subTest(name=name):
+                self.assertTrue(
+                    hasattr(self.harness, name), f"{name} is not an attribute of _harness"
+                )
+                self.assertIn(
+                    name, self.harness.__all__, f"{name} is missing from _harness.__all__"
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
