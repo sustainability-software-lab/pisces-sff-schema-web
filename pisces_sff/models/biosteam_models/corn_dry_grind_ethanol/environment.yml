@@ -1,0 +1,69 @@
+# Pinned environment for the corn dry-grind ethanol model.
+#
+# `pisces_sff.export_model` builds this environment and runs the export inside
+# it, so these pins are what actually produced the exported flowsheet.
+#
+# Two things to know when reproducing this by hand:
+#
+#   1. Set PIP_NO_DEPS=1 before running `conda env create`. Bioindustrial-Park
+#      declares `biosteam>=2.53.0`, which pip would otherwise honour by
+#      replacing the pinned biosteam commit below with a newer PyPI build --
+#      defeating the point of pinning. That declaration overstates the real
+#      requirement: this model loads and simulates against biosteam 2.46.1.
+#      (`--no-deps` cannot be written into the pip: block; pip's
+#      requirements-file parser rejects it as an unknown option.)
+#   2. Because dependency resolution is off, every transitive dependency is
+#      listed explicitly below. Adding a package here is how a missing import
+#      gets fixed -- there is no resolver to fall back on.
+#
+#   PowerShell:  $env:PIP_NO_DEPS = "1"; conda env create -f environment.yml
+#   bash:        PIP_NO_DEPS=1 conda env create -f environment.yml
+#
+# `name` is ignored by the harness, which creates the environment as
+# sff-<first 12 hex chars of the environment key>, and is excluded from that
+# key so renaming this field does not fork the environment.
+name: sff-corn-dry-grind-ethanol
+channels:
+  - defaults
+dependencies:
+  - python=3.9.25
+  - pip
+  - pip:
+      # Simulator and flowsheet model, pinned to commits (PEP 508 direct
+      # references, so the distribution name is stated rather than guessed
+      # from the repository name -- Bioindustrial-Park installs as
+      # `biorefineries`).
+      - biosteam @ git+https://github.com/BioSTEAMDevelopmentGroup/biosteam@e2d3942dd1076a4516efc91ae194f9e558428551
+      - biorefineries @ git+https://github.com/BioSTEAMDevelopmentGroup/Bioindustrial-Park@584232846c999986f108cbd14d53437cd06c8f3d
+      # Thermodynamics and property packages
+      - thermosteam==0.45.0
+      - chemicals==1.2.0
+      - thermo==0.2.27
+      - fluids==1.0.26
+      - flexsolve==0.5.7
+      - free-properties==0.3.6
+      - colorpalette==0.3.3
+      # Numerics
+      - numpy==1.26.4
+      - scipy==1.13.1
+      - pandas==2.2.2
+      - numba==0.60.0
+      - llvmlite==0.43.0
+      # Plotting, units, IO
+      - matplotlib==3.5.2
+      - Pint==0.23
+      - graphviz==0.20.3
+      - xlrd==2.0.1
+      - openpyxl==3.1.2
+      - xlsxwriter==3.2.9
+      # Used by the exporter and runner themselves
+      - jsonschema==4.25.0
+      - PyYAML==6.0.1
+      # Declared by biosteam
+      - ipython==8.15.0
+      - chaospy==4.3.15
+      # Declared by Bioindustrial-Park (SALib and seaborn are deliberately
+      # excluded: BIP declares them, but neither is installed in the reference
+      # HP_2024 environment that exports this model today, so neither is
+      # required to load and simulate it.)
+      - scikit-learn==1.6.1

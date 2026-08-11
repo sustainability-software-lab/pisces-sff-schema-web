@@ -1,0 +1,112 @@
+# -*- coding: utf-8 -*-
+# Tests the per-model recipe contract under pisces_sff/models/.
+#
+# The runner imports a model's load.py and reads module-level declarations off
+# it (SIMULATOR selects the export entry point; SIMULATOR_PACKAGE and
+# FLOWSHEET_MODEL_PACKAGE are resolved against the environment specification to
+# build metadata.reproducibility). A model missing one of those declarations
+# fails only at export time, minutes into a simulation -- these tests catch it
+# in milliseconds instead, and they apply to every model directory, so a future
+# model added by copy-paste is covered without editing this file.
+#
+# Design notes:
+#   * load.py is inspected with `ast`, never imported: importing it would pull
+#     in biosteam via `biorefineries`, which is the exact cost these Tier 1
+#     tests exist to avoid.
+
+import ast
+import unittest
+from pathlib import Path
+
+MODELS_ROOT = Path(__file__).resolve().parents[1] / "pisces_sff" / "models"
+
+REQUIRED_CONSTANTS = (
+    "SIMULATOR",
+    "SIMULATOR_PACKAGE",
+    "FLOWSHEET_MODEL_PACKAGE",
+    "MODEL_NAME",
+    "EXPORT_KWARGS",
+)
+
+
+def model_dirs():
+    """Every directory holding a load.py, at any depth under models/."""
+    return sorted(p.parent for p in MODELS_ROOT.rglob("load.py"))
+
+
+def module_constants(path):
+    """Map name -> literal value for module-level assignments in a .py file."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    constants = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                try:
+                    constants[target.id] = ast.literal_eval(node.value)
+                except ValueError:
+                    pass
+    return constants
+
+
+def module_functions(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+
+
+class TestModelsTreeExists(unittest.TestCase):
+    def test_at_least_one_model_is_present(self):
+        self.assertTrue(model_dirs(), f"no model directories found under {MODELS_ROOT}")
+
+    def test_corn_model_is_present(self):
+        names = {d.name for d in model_dirs()}
+        self.assertIn("corn_dry_grind_ethanol", names)
+
+    def test_biosteam_models_are_grouped(self):
+        # Simulator dispatch is by the SIMULATOR declaration, not by path, but
+        # the tree is still grouped per simulator so a non-BioSTEAM model has an
+        # obvious home.
+        self.assertTrue((MODELS_ROOT / "biosteam_models").is_dir())
+
+
+class TestModelRecipeContract(unittest.TestCase):
+    def test_every_model_has_an_environment_spec(self):
+        for directory in model_dirs():
+            with self.subTest(model=directory.name):
+                self.assertTrue((directory / "environment.yml").is_file())
+
+    def test_every_model_declares_the_required_constants(self):
+        for directory in model_dirs():
+            constants = module_constants(directory / "load.py")
+            for name in REQUIRED_CONSTANTS:
+                with self.subTest(model=directory.name, constant=name):
+                    self.assertIn(name, constants)
+
+    def test_export_kwargs_is_a_dict(self):
+        for directory in model_dirs():
+            with self.subTest(model=directory.name):
+                constants = module_constants(directory / "load.py")
+                self.assertIsInstance(constants["EXPORT_KWARGS"], dict)
+
+    def test_model_name_matches_its_directory(self):
+        for directory in model_dirs():
+            with self.subTest(model=directory.name):
+                constants = module_constants(directory / "load.py")
+                self.assertEqual(constants["MODEL_NAME"], directory.name)
+
+    def test_every_model_defines_load(self):
+        for directory in model_dirs():
+            with self.subTest(model=directory.name):
+                self.assertIn("load", module_functions(directory / "load.py"))
+
+    def test_package_branches_is_a_dict_when_present(self):
+        for directory in model_dirs():
+            constants = module_constants(directory / "load.py")
+            if "PACKAGE_BRANCHES" in constants:
+                with self.subTest(model=directory.name):
+                    self.assertIsInstance(constants["PACKAGE_BRANCHES"], dict)
+
+
+if __name__ == "__main__":
+    unittest.main()
