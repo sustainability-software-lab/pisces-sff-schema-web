@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
 # Code to export flowsheets from multiple tools into a standardized JSON format.
 # Copyright (C) 2025-, Sarang S. Bhagwat <sarangbhagwat.developer@gmail.com>
-# 
-# This module is under the MIT open-source license. See 
+#
+# This module is under the MIT open-source license. See
 # https://github.com/sustainability-software-lab/pisces-standard-flowsheet-format/blob/main/LICENSE
 # for license details.
 
 from __future__ import annotations
-__version__ = '0.0.5'
+
+from . import _version
+from ._version import *
+
+# Derived from the schema's "version" field rather than hardcoded here, so the
+# package version and the spec version can never disagree. See _version.py.
+__version__ = read_schema_version()
 
 from . import _export
 from ._export import *
@@ -17,6 +23,7 @@ from ._validate import *
 
 
 __all__ = (
+     *_version.__all__,
      *_export.__all__,
      *_validate.__all__,
     )

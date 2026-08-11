@@ -21,19 +21,98 @@ from biosteam import PowerUtility, System
 
 import biosteam as bst
 
-__all__ = ('export_biosteam_flowsheet',)
+__all__ = ('export_biosteam_flowsheet', 'available_sff_versions')
 
 #%% Entry-point export function
 
+# Versioned exporters are named `<_EXPORTER_PREFIX><major>_<minor>_<patch>`, and
+# that name is the only registration they need: `export_biosteam_flowsheet`
+# resolves the requested version by looking up the matching name in this module.
+# Adding support for a new schema version therefore means adding one function
+# with the right name -- nothing else in this section changes.
+_EXPORTER_PREFIX = 'export_biosteam_flowsheet_sff_'
+
+
 def export_biosteam_flowsheet(sys, filepath, sff_version, **kwargs):
-    sff_version_formatted = sff_version.replace('.', '_')
-    exec(f'export_biosteam_flowsheet_sff_{sff_version_formatted}(sys, filepath, **kwargs)')
+    """
+    Export a simulated BioSTEAM system to an SFF JSON file.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    sff_version : str
+        SFF schema version to export against, in semantic versioning notation;
+        e.g., ``'0.0.5'``. This selects the versioned exporter function to use
+        and is recorded as ``metadata.sff_version`` in the exported file.
+    **kwargs
+        Forwarded to the versioned exporter function.
+
+    Raises
+    ------
+    ValueError
+        If no exporter is implemented for `sff_version`.
+    """
+    exporter = get_versioned_exporter(sff_version)
+    return exporter(sys, filepath, sff_version=sff_version, **kwargs)
+
+
+def get_versioned_exporter(sff_version):
+    """
+    Return the exporter function implementing a given SFF schema version.
+
+    Parameters
+    ----------
+    sff_version : str
+        SFF schema version in semantic versioning notation; e.g., ``'0.0.5'``.
+
+    Returns
+    -------
+    function
+        The module-level ``export_biosteam_flowsheet_sff_<major>_<minor>_<patch>``
+        function for that version.
+
+    Raises
+    ------
+    ValueError
+        If no such function exists in this module.
+    """
+    name = _EXPORTER_PREFIX + str(sff_version).replace('.', '_')
+    exporter = globals().get(name)
+    if not isinstance(exporter, FunctionType):
+        available = available_sff_versions()
+        raise ValueError(
+            f'no exporter implemented for SFF version {sff_version!r} '
+            f'(expected a function named {name!r} in pisces_sff._export); '
+            f"available versions: {', '.join(available) if available else 'none'}."
+        )
+    return exporter
+
+
+def available_sff_versions():
+    """
+    Return the SFF schema versions this module can export, oldest first.
+
+    Returns
+    -------
+    list of str
+        Versions in semantic versioning notation; e.g., ``['0.0.5']``. These are
+        read from the names of the versioned exporter functions defined here.
+    """
+    n = len(_EXPORTER_PREFIX)
+    versions = [name[n:].replace('_', '.') for name, obj in globals().items()
+                if name.startswith(_EXPORTER_PREFIX) and isinstance(obj, FunctionType)]
+    return sorted(versions, key=lambda v: [(0, int(i), '') if i.isdigit() else (1, 0, i)
+                                           for i in v.split('.')])
 
 #%% Export function for SFF schema v0.0.5
 def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                         stoichiometry="dict", # must be one of (None, "vector", "dict")
                                         composition_units="both", # "mol%", "mass%", or "both"
                                         microorganisms=None, # optional list of microbial hosts; see metadata section below
+                                        sff_version='0.0.5', # recorded as metadata['sff_version']; must match this function's name suffix
                                         ):
     f = sys.flowsheet
     u, s = sys.units, sys.streams
@@ -45,7 +124,10 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     
     ## ------- Metadata ------- ## 
     metadata = {}
-    metadata['sff_version'] = '0.0.3'
+    # Reported from the requested version rather than a hardcoded literal: this
+    # previously read '0.0.3' regardless of the version exported against, so
+    # every export misreported the schema it was written for.
+    metadata['sff_version'] = sff_version
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
                                      'version': bst.__version__}
