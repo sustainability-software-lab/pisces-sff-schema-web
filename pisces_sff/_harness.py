@@ -178,7 +178,21 @@ def parse_pip_requirement(entry):
 
 
 def _vcs_record(name, reference):
-    """Build a package record from a ``git+`` reference; None if not one."""
+    """
+    Build a package record from a ``git+`` reference; None if not one.
+
+    A ``git+`` reference with no ``@<commit>`` is rejected (returns ``None``)
+    rather than returned as a partial ``{'name', 'url'}`` record. This parser
+    exists to produce *pins* -- ``{'name', 'version'}`` or
+    ``{'name', 'url', 'commit'}`` -- and a commit-less VCS reference is not
+    one: it resolves to whatever the branch tip happens to be at install time,
+    which is exactly the kind of unpinned dependency the reproducibility
+    contract (and the v0.0.6 schema's package-record shape) exists to catch.
+    Do not "fix" this by filling in a fake commit or dropping the requirement
+    to have one -- let ``package_record`` raise instead, so an unpinned
+    simulator/model dependency fails loudly before a conda environment is
+    built and a simulation is run, not silently at schema validation after.
+    """
     if not reference.startswith('git+'):
         return None
     url = reference[len('git+'):]
@@ -188,6 +202,8 @@ def _vcs_record(name, reference):
     # style URL is not mistaken for a commit pin.
     if '@' in url.rsplit('/', 1)[-1]:
         url, _, commit = url.rpartition('@')
+    if not commit:
+        return None
     if name is None:
         for part in fragment.split('&'):
             if part.startswith('egg='):
@@ -196,10 +212,7 @@ def _vcs_record(name, reference):
             name = url.rstrip('/').rsplit('/', 1)[-1]
             if name.endswith('.git'):
                 name = name[:-len('.git')]
-    record = {'name': name, 'url': url}
-    if commit:
-        record['commit'] = commit
-    return record
+    return {'name': name, 'url': url, 'commit': commit}
 
 
 def _normalized(name):

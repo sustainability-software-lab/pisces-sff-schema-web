@@ -183,6 +183,18 @@ class TestPipRequirementParsing(unittest.TestCase):
     def test_blank_lines_are_ignored(self):
         self.assertIsNone(self.harness.parse_pip_requirement("   "))
 
+    def test_pep508_reference_without_a_commit_is_unparseable(self):
+        # A VCS reference with no pinned commit is not a pin -- it resolves to
+        # whatever the branch tip happens to be at install time. The parser
+        # exists to produce pins, so this must come back None, not a partial
+        # {'name', 'url'} record with neither 'commit' nor 'version'.
+        entry = "somepkg @ git+https://github.com/org/repo"
+        self.assertIsNone(self.harness.parse_pip_requirement(entry))
+
+    def test_bare_git_url_without_a_commit_is_unparseable(self):
+        entry = "git+https://github.com/org/repo.git"
+        self.assertIsNone(self.harness.parse_pip_requirement(entry))
+
 
 class TestPackageRecord(unittest.TestCase):
     def setUp(self):
@@ -212,6 +224,22 @@ class TestPackageRecord(unittest.TestCase):
     def test_missing_package_raises(self):
         with self.assertRaises(ValueError):
             self.harness.package_record(BASE_YAML, "not-installed-anywhere")
+
+    def test_commit_less_vcs_entry_raises(self):
+        # The only entry for this package is an unpinned git+ reference, which
+        # parse_pip_requirement now rejects (returns None) -- so, from
+        # package_record's point of view, the package is simply not found.
+        # This must fail here, loudly, rather than pass through and only be
+        # caught later by schema validation after a conda environment has
+        # been built and a simulation run.
+        yaml_text = BASE_YAML.replace(
+            "biosteam @ git+https://github.com/BioSTEAMDevelopmentGroup/biosteam"
+            "@e2d3942dd1076a4516efc91ae194f9e558428551",
+            "biosteam @ git+https://github.com/BioSTEAMDevelopmentGroup/biosteam",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self.harness.package_record(yaml_text, "biosteam")
+        self.assertIn("biosteam", str(ctx.exception))
 
 
 class TestCornEnvironmentSpecification(unittest.TestCase):
