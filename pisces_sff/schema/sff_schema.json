@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Standard Flowsheet Format (SFF)",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A standardized, machine-readable representation of a process flowsheet designed for interoperability and data exchange. It represents the process as a directed graph with rich data attached to both nodes (units) and edges (streams).",
   "type": "object",
   "properties": {
@@ -107,6 +107,97 @@
             },
             "required": ["label"]
           }
+        },
+        "reproducibility": {
+          "type": "object",
+          "description": "Everything needed to rebuild the environment and re-run the model that produced this flowsheet. Optional: flowsheets exported without a reproducibility recipe omit this block entirely.",
+          "properties": {
+            "environment": {
+              "type": "object",
+              "description": "The environment specification used to build the environment this flowsheet was exported from.",
+              "properties": {
+                "format": { "type": "string", "description": "Specification format; e.g., 'conda-environment-yaml'." },
+                "filename": { "type": "string", "description": "File name of the environment specification." },
+                "path": { "type": "string", "description": "Path of the source file relative to the repository root, when known." },
+                "sha256": { "type": "string", "description": "SHA-256 hex digest of the verbatim file bytes." },
+                "content": { "type": "string", "description": "Full text of the environment specification, embedded so this flowsheet is reproducible on its own." }
+              },
+              "required": ["format", "filename", "sha256", "content"]
+            },
+            "load_script": {
+              "type": "object",
+              "description": "The script that loads and simulates the model exported here.",
+              "properties": {
+                "format": { "type": "string", "description": "Script format; e.g., 'python'." },
+                "filename": { "type": "string", "description": "File name of the load script." },
+                "path": { "type": "string", "description": "Path of the source file relative to the repository root, when known." },
+                "sha256": { "type": "string", "description": "SHA-256 hex digest of the verbatim file bytes." },
+                "content": { "type": "string", "description": "Full text of the load script, embedded so this flowsheet is reproducible on its own." },
+                "entry_point": { "type": "string", "description": "Name of the callable in the script that returns the simulated model; e.g., 'load'." }
+              },
+              "required": ["format", "filename", "sha256", "content"]
+            },
+            "simulator_package": {
+              "type": "object",
+              "description": "The process simulator package, pinned. Restates a pin that also appears in the embedded environment specification, so that provenance can be indexed and queried without parsing that text.",
+              "properties": {
+                "name": { "type": "string", "description": "Distribution name of the package." },
+                "url": { "type": "string", "description": "Repository URL; required when 'commit' is given." },
+                "commit": { "type": "string", "description": "Full VCS commit SHA the package was installed from." },
+                "branch": { "type": "string", "description": "Branch the commit is reachable from, when known." },
+                "version": { "type": "string", "description": "Release version, when installed from a package index." }
+              },
+              "required": ["name"],
+              "anyOf": [
+                { "required": ["commit"] },
+                { "required": ["version"] }
+              ],
+              "allOf": [
+                {
+                  "if": { "required": ["commit"] },
+                  "then": { "required": ["url"] }
+                }
+              ]
+            },
+            "flowsheet_model_package": {
+              "type": "object",
+              "description": "The package providing the flowsheet model itself, pinned. Restates a pin that also appears in the embedded environment specification, so that provenance can be indexed and queried without parsing that text.",
+              "properties": {
+                "name": { "type": "string", "description": "Distribution name of the package." },
+                "url": { "type": "string", "description": "Repository URL; required when 'commit' is given." },
+                "commit": { "type": "string", "description": "Full VCS commit SHA the package was installed from." },
+                "branch": { "type": "string", "description": "Branch the commit is reachable from, when known." },
+                "version": { "type": "string", "description": "Release version, when installed from a package index." }
+              },
+              "required": ["name"],
+              "anyOf": [
+                { "required": ["commit"] },
+                { "required": ["version"] }
+              ],
+              "allOf": [
+                {
+                  "if": { "required": ["commit"] },
+                  "then": { "required": ["url"] }
+                }
+              ]
+            },
+            "resolved": {
+              "type": "object",
+              "description": "Observed inside the environment at export time, distinguishing what actually ran from what was declared.",
+              "properties": {
+                "python_version": { "type": "string", "description": "Python version the export ran under." },
+                "platform": { "type": "string", "description": "Platform identifier the export ran on." },
+                "env_key": { "type": "string", "description": "SHA-256 hex digest of the canonicalized environment specification; identifies the environment the export ran in." },
+                "exported_at": { "type": "string", "description": "UTC timestamp of the export, ISO-8601." },
+                "package_versions": {
+                  "type": "object",
+                  "description": "Installed versions of relevant packages, keyed by distribution name.",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          },
+          "required": ["environment", "load_script"]
         }
       },
       "required": [

@@ -36,6 +36,12 @@ INIT_PATH = PACKAGE_ROOT / "__init__.py"
 # below fails if the two ever diverge.
 EXPORTER_PREFIX = "export_biosteam_flowsheet_sff_"
 
+# The versioned exporters delegate document assembly to this shared builder,
+# which is where metadata['sff_version'] is assigned. Named here so the
+# "no hardcoded version" check below follows the assignment instead of passing
+# vacuously once the exporters became thin wrappers.
+BUILDER_NAME = "_build_sff_dict"
+
 
 def load_version_module():
     """Load pisces_sff/_version.py without executing the package __init__."""
@@ -65,6 +71,18 @@ def versioned_exporters():
             version = node.name[len(EXPORTER_PREFIX):].replace("_", ".")
             exporters[version] = node
     return exporters
+
+
+def metadata_writers():
+    """Map name -> ast.FunctionDef for every function that may build metadata."""
+    writers = {
+        f"{EXPORTER_PREFIX}{v.replace('.', '_')}": node
+        for v, node in versioned_exporters().items()
+    }
+    for node in parse(EXPORT_PATH).body:
+        if isinstance(node, ast.FunctionDef) and node.name == BUILDER_NAME:
+            writers[BUILDER_NAME] = node
+    return writers
 
 
 def default_of(func_node, param_name):
@@ -157,32 +175,51 @@ class TestVersionedExporterNaming(unittest.TestCase):
             with self.subTest(version=version):
                 self.assertEqual(default_of(node, "sff_version"), version)
 
+    def test_shared_builder_exists(self):
+        # If the builder is renamed or inlined, the check below silently stops
+        # inspecting the code that actually assigns metadata['sff_version'].
+        self.assertIn(BUILDER_NAME, metadata_writers())
+
     def test_no_exporter_hardcodes_a_version_into_metadata(self):
         # metadata['sff_version'] must come from the sff_version parameter.
-        for version, node in self.exporters.items():
-            with self.subTest(version=version):
-                for sub in ast.walk(node):
-                    if not (isinstance(sub, ast.Assign) and len(sub.targets) == 1):
-                        continue
-                    target = sub.targets[0]
-                    if not isinstance(target, ast.Subscript):
-                        continue
-                    if not (
-                        isinstance(target.value, ast.Name)
-                        and target.value.id == "metadata"
-                    ):
-                        continue
-                    # ast.Index wrapper on Python < 3.9 semantics; unwrap if present.
-                    key = getattr(target.slice, "value", target.slice)
-                    key = key.value if isinstance(key, ast.Constant) else None
-                    if key == "sff_version":
-                        self.assertIsInstance(
-                            sub.value,
-                            ast.Name,
-                            "metadata['sff_version'] must be assigned from the "
-                            "sff_version argument, not a literal",
-                        )
-                        self.assertEqual(sub.value.id, "sff_version")
+        found = 0
+        for name, node in metadata_writers().items():
+            for sub in ast.walk(node):
+                if not (isinstance(sub, ast.Assign) and len(sub.targets) == 1):
+                    continue
+                target = sub.targets[0]
+                if not isinstance(target, ast.Subscript):
+                    continue
+                if not (
+                    isinstance(target.value, ast.Name)
+                    and target.value.id == "metadata"
+                ):
+                    continue
+                # Version-agnostic unwrap: on Python < 3.9, target.slice is an
+                # ast.Index wrapper around the real key node; on 3.9+ it is
+                # already the bare ast.Constant. The old
+                # `getattr(slice, "value", slice)` idiom silently unwrapped the
+                # 3.9+ Constant to a plain `str` and then discarded it (the
+                # following isinstance(..., ast.Constant) check is False for a
+                # str), so this check matched nothing and passed vacuously.
+                slice_node = target.slice
+                if slice_node.__class__.__name__ == "Index":  # Python < 3.9 wrapper
+                    slice_node = slice_node.value
+                key = slice_node.value if isinstance(slice_node, ast.Constant) else None
+                if key != "sff_version":
+                    continue
+                found += 1
+                with self.subTest(function=name):
+                    self.assertIsInstance(
+                        sub.value,
+                        ast.Name,
+                        "metadata['sff_version'] must be assigned from the "
+                        "sff_version argument, not a literal",
+                    )
+                    self.assertEqual(sub.value.id, "sff_version")
+        self.assertEqual(
+            found, 1, "metadata['sff_version'] must be assigned in exactly one place"
+        )
 
 
 if __name__ == "__main__":

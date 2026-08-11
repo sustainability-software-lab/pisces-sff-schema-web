@@ -27,6 +27,7 @@ The `metadata` object provides high-level information about the process flowshee
 - **products**: Product and co-product material streams for this flowsheet, each with a required `stream_id` and an optional `display_name`. *(Required)*
 - **microorganisms**: Microbial hosts used for bioproduction, if applicable. Represented as a list (not a single string) so that co-cultures and multi-host processes can each be a distinct entry; every entry has a required `name` and an optional `label`.
 - **flowsheet_designers**: Authors who designed the simulation.
+- **reproducibility**: Everything needed to rebuild the environment and re-run the model that produced this flowsheet: the full text and SHA-256 of the environment specification (`environment`) and load script (`load_script`), the pinned `simulator_package` and `flowsheet_model_package` (each identified by a VCS `commit` + `url`, or by a released `version`), and a `resolved` block recording the Python version, platform, environment key, timestamp, and installed package versions observed at export time. Optional — flowsheets exported without a recipe omit it.
 
 ---
 

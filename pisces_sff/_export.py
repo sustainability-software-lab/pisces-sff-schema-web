@@ -107,13 +107,41 @@ def available_sff_versions():
     return sorted(versions, key=lambda v: [(0, int(i), '') if i.isdigit() else (1, 0, i)
                                            for i in v.split('.')])
 
-#%% Export function for SFF schema v0.0.5
-def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
-                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
-                                        composition_units="both", # "mol%", "mass%", or "both"
-                                        microorganisms=None, # optional list of microbial hosts; see metadata section below
-                                        sff_version='0.0.5', # recorded as metadata['sff_version']; must match this function's name suffix
-                                        ):
+#%% Shared flowsheet assembly
+# Every versioned exporter assembles the same core document; only the
+# version-specific additions differ. Keeping the assembly here means adding a
+# schema version costs one thin function rather than a copy of ~170 lines that
+# would drift from this one. metadata['sff_version'] is assigned from the
+# argument here and nowhere else -- see tests/test_version_sync.py.
+def _build_sff_dict(sys, tea=None,
+                    stoichiometry="dict", # must be one of (None, "vector", "dict")
+                    composition_units="both", # "mol%", "mass%", or "both"
+                    microorganisms=None, # optional list of microbial hosts; see metadata section below
+                    sff_version=None, # recorded as metadata['sff_version']
+                    ):
+    """
+    Assemble the SFF document for a simulated BioSTEAM system.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    sff_version : str
+        Version recorded as ``metadata['sff_version']``.
+
+    Returns
+    -------
+    dict
+        The SFF document, ready to serialize.
+    """
     f = sys.flowsheet
     u, s = sys.units, sys.streams
     all_streams = list(s)
@@ -280,21 +308,89 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
               }
         other_utilities.append(ou)
     
-    # Export
-    flowsheet_to_export = {"metadata": metadata,
-                           "units": units,
-                           "streams": streams,
-                           "chemicals": chemicals,
-                           "utilities": {"heat_utilities": heat_utilities,
-                                          "power_utilities": power_utilities,
-                                          "other_utilities": other_utilities},
-                           }
+    return {"metadata": metadata,
+            "units": units,
+            "streams": streams,
+            "chemicals": chemicals,
+            "utilities": {"heat_utilities": heat_utilities,
+                          "power_utilities": power_utilities,
+                          "other_utilities": other_utilities},
+            }
+
+
+def _write_sff_json(flowsheet_to_export, filepath):
+    """Serialize an assembled SFF document to `filepath` as indented JSON."""
+    # NOTE: the bare `breakpoint()` here is pre-existing (known issue #2) and is
+    # deliberately left in place; the harness runs exports with
+    # PYTHONBREAKPOINT=0, which makes it a no-op rather than an unkillable hang
+    # in a TTY-less subprocess.
     try:
         with open(filepath, "w") as json_file:
             json.dump(flowsheet_to_export, json_file, indent=4)
     except:
         breakpoint()
-        
+
+
+#%% Export function for SFF schema v0.0.5
+def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        sff_version='0.0.5', # must match this function's name suffix
+                                        ):
+    """Export a simulated BioSTEAM system against SFF schema v0.0.5."""
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.6
+def export_biosteam_flowsheet_sff_0_0_6(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.6', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.6.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``: the environment
+        specification, load script, pinned packages, and resolved runtime facts.
+        Built by :func:`pisces_sff._runner.build_reproducibility`. Omitted
+        entirely when falsy, so hand exports still validate -- the schema marks
+        the block optional.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
 #%% Helper functions
 
 def is_feedstock(stream, all_sys_feeds):
