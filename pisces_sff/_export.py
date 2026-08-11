@@ -30,9 +30,10 @@ def export_biosteam_flowsheet(sys, filepath, sff_version, **kwargs):
     exec(f'export_biosteam_flowsheet_sff_{sff_version_formatted}(sys, filepath, **kwargs)')
 
 #%% Export function for SFF schema v0.0.5
-def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None, 
+def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                         stoichiometry="dict", # must be one of (None, "vector", "dict")
                                         composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts; see metadata section below
                                         ):
     f = sys.flowsheet
     u, s = sys.units, sys.streams
@@ -50,9 +51,43 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                                      'version': bst.__version__}
     metadata['feedstocks'] = [{"display_name": format_name(stream.ID), "stream_id": stream.ID} 
                               for stream in all_streams if is_feedstock(stream, all_sys_feeds)]
-    metadata['products'] = [{"display_name": format_name(stream.ID), "stream_id": stream.ID} 
+    metadata['products'] = [{"display_name": format_name(stream.ID), "stream_id": stream.ID}
                             for stream in all_streams if is_product(stream, all_sys_products)]
-                
+
+    # ------- Microorganisms (optional) -------
+    # A BioSTEAM System does not carry any host-organism identity, so this value
+    # cannot be inferred from `sys`; callers must supply it explicitly via the
+    # `microorganisms` argument. The v0.0.5 schema models this field as an array
+    # of {"name": str, "label"?: str} objects (rather than a single string) so
+    # that co-cultures and multi-host processes are each represented as distinct,
+    # machine-readable entries. We normalize whatever the caller passes into that
+    # shape here: a bare string is promoted to {"name": <string>}, and a dict is
+    # accepted after confirming it carries a non-empty `name` (an optional `label`
+    # is preserved when present). The key is omitted entirely when nothing is
+    # supplied, because the schema marks `microorganisms` as optional and requires
+    # at least one entry when present (minItems: 1), so emitting an empty list
+    # would produce output that fails validation.
+    if microorganisms:
+        normalized_hosts = []
+        for host in microorganisms:
+            if isinstance(host, str):
+                normalized_hosts.append({"name": host})
+            elif isinstance(host, dict) and host.get("name"):
+                entry = {"name": host["name"]}
+                if host.get("label"):
+                    entry["label"] = host["label"]
+                normalized_hosts.append(entry)
+            else:
+                # Fail loudly rather than silently emit an invalid entry: a host
+                # that is neither a string nor a dict-with-name cannot be mapped
+                # to the schema's required {"name": ...} shape.
+                raise ValueError(
+                    f"Invalid microorganism entry {host!r}: expected a non-empty "
+                    "string or a dict containing a non-empty 'name' key."
+                )
+        if normalized_hosts:
+            metadata['microorganisms'] = normalized_hosts
+
     ## ------- Units ------- ##
     units = []
     all_hu_agents = set()

@@ -23,8 +23,9 @@ The `metadata` object provides high-level information about the process flowshee
 - **TEA_year**: The baseline year used for calculating costs. *(Required)*
 - **source_doi**: A digital object identifier pointing to the publication where the process was introduced.
 - **process_title**: Title of the process flowsheet.
-- **product_name**: Primary product being manufactured.
-- **organism**: Organism used for bioproduction, if applicable.
+- **feedstocks**: Feedstock material streams for this flowsheet, each with a required `stream_id` and an optional `display_name`. *(Required)*
+- **products**: Product and co-product material streams for this flowsheet, each with a required `stream_id` and an optional `display_name`. *(Required)*
+- **microorganisms**: Microbial hosts used for bioproduction, if applicable. Represented as a list (not a single string) so that co-cultures and multi-host processes can each be a distinct entry; every entry has a required `name` and an optional `label`.
 - **flowsheet_designers**: Authors who designed the simulation.
 
 ---
