@@ -18,6 +18,9 @@ __version__ = read_schema_version()
 from . import _export
 from ._export import *
 
+from . import _harness
+from ._harness import *
+
 from . import _validate
 from ._validate import *
 
@@ -25,5 +28,6 @@ from ._validate import *
 __all__ = (
      *_version.__all__,
      *_export.__all__,
+     *_harness.__all__,
      *_validate.__all__,
     )

@@ -259,3 +259,267 @@ def package_record(env_text, package_name, branch=None):
         'specification; every package recorded in metadata.reproducibility must '
         'be pinned there.'
     )
+
+
+#%% Environment provisioning
+
+
+def find_conda_exe(conda_exe=None):
+    """
+    Locate a usable conda executable.
+
+    ``conda`` is frequently absent from ``PATH`` in non-interactive shells even
+    where conda is installed, so common installation locations are searched
+    before giving up.
+
+    Parameters
+    ----------
+    conda_exe : str, optional
+        Explicit path or command name. When given, only this is tried: silently
+        falling back to a different conda would build the environment somewhere
+        the caller did not ask for.
+
+    Returns
+    -------
+    str
+        Path to a conda executable.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no candidate exists, naming what was searched.
+    """
+    if conda_exe:
+        for candidate in (conda_exe, shutil.which(conda_exe)):
+            if candidate and Path(candidate).exists():
+                return str(candidate)
+        raise FileNotFoundError(
+            f'the conda executable {conda_exe!r} does not exist.'
+        )
+    home = Path.home()
+    candidates = [
+        os.environ.get('SFF_CONDA_EXE'),
+        os.environ.get('CONDA_EXE'),
+        shutil.which('conda'),
+        str(home / 'anaconda3' / 'Scripts' / 'conda.exe'),
+        str(home / 'miniconda3' / 'Scripts' / 'conda.exe'),
+        str(home / 'anaconda3' / 'bin' / 'conda'),
+        str(home / 'miniconda3' / 'bin' / 'conda'),
+        '/opt/conda/bin/conda',
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return str(candidate)
+    raise FileNotFoundError(
+        'no conda executable found; environment provisioning needs one. Set the '
+        'SFF_CONDA_EXE environment variable or pass conda_exe=... explicitly. '
+        'Searched: ' + ', '.join(repr(c) for c in candidates if c)
+    )
+
+
+def _environment_prefix(conda, name, run):
+    """Return the prefix of the conda environment called `name`, or None."""
+    result = run([conda, 'env', 'list', '--json'],
+                 capture_output=True, text=True, check=True)
+    for prefix in json.loads(result.stdout).get('envs', ()):
+        if Path(prefix).name == name:
+            return prefix
+    return None
+
+
+def ensure_environment(env_yaml_path, recreate=False, conda_exe=None, run=None):
+    """
+    Return the prefix of the conda environment described by an environment file,
+    creating it if necessary.
+
+    Parameters
+    ----------
+    env_yaml_path : str or Path
+        Path to an ``environment.yml``.
+    recreate : bool, optional
+        Remove and rebuild the environment even if it already exists.
+    conda_exe : str, optional
+        Explicit conda executable; see :func:`find_conda_exe`.
+    run : callable, optional
+        Subprocess runner, injectable for testing. Defaults to
+        :func:`subprocess.run`.
+
+    Returns
+    -------
+    str
+        Path to the environment prefix.
+    """
+    if run is None:
+        run = subprocess.run
+    conda = find_conda_exe(conda_exe)
+    env_yaml_path = Path(env_yaml_path).resolve()
+    text = env_yaml_path.read_text(encoding='utf-8')
+    name = environment_name(text)
+    prefix = _environment_prefix(conda, name, run)
+    if prefix is not None and recreate:
+        run([conda, 'env', 'remove', '-n', name, '-y'], check=True)
+        prefix = None
+    if prefix is None:
+        # PIP_NO_DEPS disables pip's dependency resolution for the whole
+        # creation. Without it, Bioindustrial-Park's declared `biosteam>=2.53.0`
+        # replaces the pinned biosteam commit and every pin below it becomes
+        # fiction. It cannot be expressed as `--no-deps` inside the pip: block:
+        # conda writes that block verbatim into a requirements file, and pip's
+        # requirements-file parser rejects --no-deps as an unknown option.
+        env = dict(os.environ, PIP_NO_DEPS='1')
+        try:
+            run([conda, 'env', 'create', '-n', name, '-f', str(env_yaml_path)],
+                check=True, env=env)
+        except Exception:
+            # A partially-created environment still matches the content hash, so
+            # leaving it in place would make every later export reuse a broken
+            # environment.
+            run([conda, 'env', 'remove', '-n', name, '-y'], check=False)
+            raise
+        prefix = _environment_prefix(conda, name, run)
+        if prefix is None:
+            raise RuntimeError(
+                f'conda reported success but environment {name!r} does not exist'
+            )
+    return prefix
+
+
+def environment_python(prefix):
+    """
+    Return the Python interpreter inside a conda environment prefix.
+
+    Parameters
+    ----------
+    prefix : str or Path
+
+    Returns
+    -------
+    Path
+    """
+    prefix = Path(prefix)
+    return prefix / 'python.exe' if os.name == 'nt' else prefix / 'bin' / 'python'
+
+
+#%% Export orchestration
+
+#: Guards against concurrent exports; see :func:`export_lock`.
+LOCK_PATH = Path(tempfile.gettempdir()) / 'pisces_sff_export.lock'
+
+
+@contextmanager
+def export_lock():
+    """
+    Refuse to run two exports at once.
+
+    Exporting simulates a system, which recompiles and writes a shared on-disk
+    numba cache; two simultaneous writers corrupt it, and the resulting import
+    error looks nothing like its cause. Enforced here rather than left to the
+    caller.
+
+    Raises
+    ------
+    RuntimeError
+        If the lock is already held.
+    """
+    try:
+        descriptor = os.open(str(LOCK_PATH), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise RuntimeError(
+            f'another SFF export appears to be running (lock file {LOCK_PATH}). '
+            'Concurrent simulations corrupt the shared numba cache. If no export '
+            'is running, delete that file and retry.'
+        )
+    try:
+        os.write(descriptor, str(os.getpid()).encode('utf-8'))
+        os.close(descriptor)
+        yield
+    finally:
+        try:
+            LOCK_PATH.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def export_model(model_dir, output_path, recreate_env=False, conda_exe=None,
+                 sff_version=DEFAULT_SFF_VERSION, run=None):
+    """
+    Export a model to SFF from inside the environment its recipe pins.
+
+    Provisions the conda environment described by ``<model_dir>/environment.yml``
+    (reusing it when one already matches), then runs :mod:`pisces_sff._runner`
+    with that environment's interpreter. The child's ``PYTHONPATH`` is set to the
+    repository root alone, so source clones on a user-level ``PYTHONPATH`` cannot
+    shadow the pinned installs -- which is the failure mode that made previous
+    exports irreproducible.
+
+    Parameters
+    ----------
+    model_dir : str or Path
+        Directory containing ``environment.yml`` and ``load.py``.
+    output_path : str or Path
+        Path to write the SFF JSON file to. Parent directories are created.
+    recreate_env : bool, optional
+        Rebuild the environment even if it already exists.
+    conda_exe : str, optional
+        Explicit conda executable; see :func:`find_conda_exe`.
+    sff_version : str, optional
+        SFF schema version to export against.
+    run : callable, optional
+        Subprocess runner, injectable for testing.
+
+    Returns
+    -------
+    Path
+        `output_path`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the model directory is missing a required file.
+    RuntimeError
+        If the child process exits non-zero.
+    """
+    if run is None:
+        run = subprocess.run
+    model_dir = Path(model_dir).resolve()
+    env_yaml_path = model_dir / 'environment.yml'
+    load_script_path = model_dir / 'load.py'
+    for required in (env_yaml_path, load_script_path):
+        if not required.is_file():
+            raise FileNotFoundError(
+                f'{required} is required: a model directory must contain both '
+                'environment.yml and load.py.'
+            )
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    text = env_yaml_path.read_text(encoding='utf-8')
+    key = environment_key(text)
+    prefix = ensure_environment(env_yaml_path, recreate=recreate_env,
+                                conda_exe=conda_exe, run=run)
+
+    # Scrub the inherited context: conda variables would point the child back at
+    # the parent's environment, and user site-packages is another shadowing path.
+    child_env = {k: v for k, v in os.environ.items()
+                 if k not in ('CONDA_PREFIX', 'CONDA_DEFAULT_ENV', 'CONDA_SHLVL',
+                              'CONDA_PYTHON_EXE', 'PYTHONHOME')}
+    child_env['PYTHONPATH'] = str(REPO_ROOT)
+    child_env['PYTHONNOUSERSITE'] = '1'
+    # _export.py contains bare breakpoint() calls (a known issue). In a child
+    # process with no TTY they hang forever; this makes them no-ops instead.
+    child_env['PYTHONBREAKPOINT'] = '0'
+
+    command = [str(environment_python(prefix)), '-m', 'pisces_sff._runner',
+               '--model-dir', str(model_dir),
+               '--output', str(output_path),
+               '--env-key', key,
+               '--sff-version', str(sff_version)]
+    with export_lock():
+        result = run(command, env=child_env)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f'export failed for model {model_dir.name!r} '
+            f'(child process exited with code {result.returncode}); '
+            'see the output above.'
+        )
+    return output_path
