@@ -1,0 +1,18 @@
+# Local-only Claude Code working files
+CLAUDE.md
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Numba caches
+*.nbc
+*.nbi
+
+# MkDocs build output
+site/
+public/
