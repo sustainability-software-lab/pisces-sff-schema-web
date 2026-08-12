@@ -18,7 +18,7 @@ import ast
 import unittest
 from pathlib import Path
 
-MODELS_ROOT = Path(__file__).resolve().parents[1] / "pisces_sff" / "models"
+MODELS_ROOT = Path(__file__).resolve().parents[2] / "pisces_sff" / "models"
 
 REQUIRED_CONSTANTS = (
     "SIMULATOR",

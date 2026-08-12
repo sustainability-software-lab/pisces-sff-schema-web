@@ -25,7 +25,7 @@ import json
 import unittest
 from pathlib import Path
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "pisces_sff"
+PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "pisces_sff"
 SCHEMA_PATH = PACKAGE_ROOT / "schema" / "sff_schema.json"
 VERSION_PATH = PACKAGE_ROOT / "_version.py"
 EXPORT_PATH = PACKAGE_ROOT / "_export.py"

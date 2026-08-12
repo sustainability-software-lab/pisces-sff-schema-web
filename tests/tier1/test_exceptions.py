@@ -3,7 +3,7 @@
 # a guard that the exporter no longer contains bare breakpoint() traps.
 #
 # Import-light by construction: exceptions.py imports no biosteam, and we load it
-# by file path (like tests/test_quantity_units_helpers.py loads _quantity_units)
+# by file path (like tests/tier1/test_quantity_units_helpers.py loads _quantity_units)
 # so that importing the pisces_sff package — and thus _export/biosteam — never
 # happens here.
 
@@ -12,7 +12,7 @@ import re
 import unittest
 from pathlib import Path
 
-PKG_DIR = Path(__file__).resolve().parents[1] / "pisces_sff"
+PKG_DIR = Path(__file__).resolve().parents[2] / "pisces_sff"
 EXCEPTIONS_PATH = PKG_DIR / "exceptions.py"
 EXPORT_PATH = PKG_DIR / "_export.py"
 

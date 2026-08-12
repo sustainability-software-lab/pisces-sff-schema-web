@@ -28,7 +28,7 @@ from jsonschema import Draft7Validator
 # The schema is the single source of truth on `main` (the repo moved from
 # versioned per-file schemas to one consolidated sff_schema.json).
 SCHEMA_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "pisces_sff"
     / "schema"
     / "sff_schema.json"

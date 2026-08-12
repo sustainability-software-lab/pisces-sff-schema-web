@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "pisces_sff" / "_quantity_units.py"
 )
 

@@ -26,7 +26,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 HARNESS_PATH = REPO_ROOT / "pisces_sff" / "_harness.py"
 CORN_ENV = (
     REPO_ROOT

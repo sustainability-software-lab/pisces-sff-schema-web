@@ -20,7 +20,7 @@ from pathlib import Path
 from jsonschema import Draft7Validator
 
 SCHEMA_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "pisces_sff" / "schema" / "sff_schema.json"
 )
 
