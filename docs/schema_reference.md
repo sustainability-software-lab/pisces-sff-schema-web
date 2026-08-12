@@ -20,7 +20,7 @@ Every valid SFF JSON object contains six essential properties at its root:
 The `metadata` object provides high-level information about the process flowsheet, versions, and economic settings.
 
 - **sff_version**: The version of SFF used (e.g., `"1.0"`). *(Required)*
-- **TEA_currency**: The currency used in the techno-economic analysis, typically `"USD"`.
+- **TEA_currency**: The currency used to report all cost results, typically `"USD"`. BioSTEAM exports always report `"USD"`. *(Required)*
 - **TEA_year**: The baseline year used for calculating costs. *(Required)*
 - **source_doi**: A digital object identifier pointing to the publication where the process was introduced.
 - **process_title**: Title of the process flowsheet.

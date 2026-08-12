@@ -135,7 +135,7 @@ def build_reproducibility(model_dir, module, env_key=None):
     Returns
     -------
     dict
-        Conforming to ``metadata.reproducibility`` in SFF v0.0.7.
+        Conforming to ``metadata.reproducibility`` in SFF v0.0.8.
     """
     model_dir = Path(model_dir).resolve()
     env_path = model_dir / 'environment.yml'
@@ -166,7 +166,7 @@ def build_reproducibility(model_dir, module, env_key=None):
 #%% Export
 
 
-def run_model_export(model_dir, output_path, sff_version='0.0.7', env_key=None):
+def run_model_export(model_dir, output_path, sff_version='0.0.8', env_key=None):
     """
     Load, simulate, and export a model, then validate the result.
 
@@ -262,7 +262,7 @@ def main(argv=None):
                         help='directory containing environment.yml and load.py')
     parser.add_argument('--output', required=True,
                         help='path to write the SFF JSON file to')
-    parser.add_argument('--sff-version', default='0.0.7',
+    parser.add_argument('--sff-version', default='0.0.8',
                         help='SFF schema version to export against')
     parser.add_argument('--env-key', default=None,
                         help='environment key recorded in the exported file')

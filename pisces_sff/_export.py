@@ -26,6 +26,7 @@ from ._quantity_units import (
     QUANTITY_UNITS_GLOBAL,
     scalar,
     uses_inline_scalar_style,
+    version_tuple,
     quantity_units_for_design_results,
 )
 from .exceptions import (
@@ -120,6 +121,12 @@ def available_sff_versions():
                                            for i in v.split('.')])
 
 #%% Shared flowsheet assembly
+
+#: First schema version that requires metadata.TEA_currency. Older exporters
+#: omit the field so their historical output stays byte-stable; see the gated
+#: emission in _build_sff_dict below.
+_TEA_CURRENCY_SINCE = (0, 0, 8)
+
 # Every versioned exporter assembles the same core document; only the
 # version-specific additions differ. Keeping the assembly here means adding a
 # schema version costs one thin function rather than a copy of ~170 lines that
@@ -174,6 +181,11 @@ def _build_sff_dict(sys, tea=None,
     # previously read '0.0.3' regardless of the version exported against, so
     # every export misreported the schema it was written for.
     metadata['sff_version'] = sff_version
+    # TEA_currency became a required metadata field in v0.0.8; older exporters
+    # omit it to keep their historical output byte-stable. BioSTEAM reports all
+    # cost results in USD.
+    if version_tuple(sff_version) >= _TEA_CURRENCY_SINCE:
+        metadata['TEA_currency'] = 'USD'
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
                                      'version': bst.__version__}
@@ -445,6 +457,51 @@ def export_biosteam_flowsheet_sff_0_0_7(sys, filepath, tea=None,
     registry, each unit operation carries ``quantity_units_for_design_results``,
     the power-utility price is ``electrical_energy_price``, and the utility
     results-unit key is ``quantity_units_for_utility_results``.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.8
+def export_biosteam_flowsheet_sff_0_0_8(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.8', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.8.
+
+    Identical to the v0.0.7 exporter except that ``metadata.TEA_currency`` is
+    now a required field: the shared builder emits it as ``"USD"`` (the currency
+    BioSTEAM reports all cost results in) at this version and above.
 
     Parameters
     ----------

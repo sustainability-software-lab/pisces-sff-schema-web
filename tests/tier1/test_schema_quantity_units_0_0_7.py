@@ -26,8 +26,12 @@ def load_schema():
 
 
 class TestSchemaVersion(unittest.TestCase):
-    def test_version_is_0_0_7(self):
-        self.assertEqual(load_schema()["version"], "0.0.7")
+    def test_schema_is_at_least_0_0_7(self):
+        # The bare-number quantity-unit shape this suite pins was introduced in
+        # 0.0.7 and still holds; assert a floor rather than an exact version so
+        # a later additive bump (e.g. 0.0.8's TEA_currency) does not break it.
+        version = tuple(int(p) for p in load_schema()["version"].split("."))
+        self.assertGreaterEqual(version, (0, 0, 7))
 
 
 class TestScalarsAreBareNumbers(unittest.TestCase):
@@ -110,7 +114,9 @@ class TestOldShapeIsRejected(unittest.TestCase):
         # A minimal-but-valid v0.0.7 document; individual tests corrupt one field.
         return {
             "metadata": {
-                "sff_version": "0.0.7", "TEA_year": 2020,
+                # TEA_currency is required as of 0.0.8; the quantity-unit shape
+                # under test is unchanged from 0.0.7, so the doc still exercises it.
+                "sff_version": "0.0.7", "TEA_currency": "USD", "TEA_year": 2020,
                 "process_simulator": {"name": "BioSTEAM", "version": "2.46.1"},
                 "feedstocks": [{"stream_id": "corn"}],
                 "products": [{"stream_id": "ethanol"}],

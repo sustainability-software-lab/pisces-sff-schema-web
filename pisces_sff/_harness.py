@@ -43,7 +43,7 @@ ENV_NAME_PREFIX = 'sff-'
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 #: SFF schema version exports are written against by default.
-DEFAULT_SFF_VERSION = '0.0.7'
+DEFAULT_SFF_VERSION = '0.0.8'
 
 #%% Recipe helpers
 

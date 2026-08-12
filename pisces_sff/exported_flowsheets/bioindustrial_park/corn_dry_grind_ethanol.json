@@ -1,6 +1,7 @@
 {
     "metadata": {
-        "sff_version": "0.0.7",
+        "sff_version": "0.0.8",
+        "TEA_currency": "USD",
         "TEA_year": 2018,
         "process_simulator": {
             "name": "BioSTEAM",
@@ -63,7 +64,7 @@
                 "python_version": "3.9.25",
                 "platform": "Windows-10-10.0.26200-SP0",
                 "env_key": "a996d9af0728c87797660ff093b1b4f795f6924876370c6a482e552839f0f894",
-                "exported_at": "2026-08-12T07:39:28Z",
+                "exported_at": "2026-08-12T19:25:49Z",
                 "package_versions": {
                     "biosteam": "2.46.1",
                     "biorefineries": "2.34.10",
@@ -1239,16 +1240,6 @@
             "reactions": [
                 {
                     "index": 0,
-                    "equation": "Glucose -> Yeast",
-                    "reactant": "Glucose",
-                    "conversion": 1.0,
-                    "stoichiometry": {
-                        "Glucose": -1.0,
-                        "Yeast": 1.0
-                    }
-                },
-                {
-                    "index": 1,
                     "equation": "Glucose -> 2 Ethanol + 2 CO2",
                     "reactant": "Glucose",
                     "conversion": 0.95,
@@ -1256,6 +1247,16 @@
                         "Ethanol": 2.0,
                         "Glucose": -1.0,
                         "CO2": 2.0
+                    }
+                },
+                {
+                    "index": 1,
+                    "equation": "Glucose -> Yeast",
+                    "reactant": "Glucose",
+                    "conversion": 1.0,
+                    "stoichiometry": {
+                        "Glucose": -1.0,
+                        "Yeast": 1.0
                     }
                 }
             ],

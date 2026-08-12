@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
-# Tier 2: exporter version-dispatch guard. Exports one small REAL System at both
-# 0.0.6 and 0.0.7 and asserts the scalar-shape and results-key differences the
-# two schema versions require. This is about exporter version dispatch, not the
-# corn model, so it needs no whole-model simulation -- which is why it lives in
-# Tier 2 rather than Tier 3.
+# Tier 2: exporter version-dispatch guard. Exports one small REAL System at
+# 0.0.6, 0.0.7, and 0.0.8 and asserts the scalar-shape, results-key, and
+# required-metadata differences the schema versions require. This is about
+# exporter version dispatch, not the corn model, so it needs no whole-model
+# simulation -- which is why it lives in Tier 2 rather than Tier 3.
 #
 # All asserted shapes are verified from a real export run:
+#   0.0.8 -> like 0.0.7, plus the now-required metadata.TEA_currency ("USD");
+#            this is the only version whose export validates against the
+#            committed (0.0.8) schema.
 #   0.0.7 -> bare-number scalars, a quantity_units_global registry, and the
-#            renamed quantity_units_for_utility_results key.
+#            renamed quantity_units_for_utility_results key; omits TEA_currency.
 #   0.0.6 -> inline {"value","units"} scalars, NO registry, and the legacy
-#            units_for_utility_results key.
+#            units_for_utility_results key; omits TEA_currency.
 #
 # Gated on SFF_TEST_BIOSTEAM=1.
 
@@ -50,13 +53,14 @@ class TestVersionShapeGuard(unittest.TestCase):
             system, str(cls.path_006), sff_version="0.0.6", tea=tea)
         cls.doc_006 = json.loads(cls.path_006.read_text(encoding="utf-8"))
 
+        cls.path_008 = tmp / "small_008.json"
+        _export.export_biosteam_flowsheet(
+            system, str(cls.path_008), sff_version="0.0.8", tea=tea)
+        cls.doc_008 = json.loads(cls.path_008.read_text(encoding="utf-8"))
+
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
-
-    def test_0_0_7_validates_against_the_schema(self):
-        is_valid, errors = self.validate(str(self.path_007), str(SCHEMA_PATH))
-        self.assertTrue(is_valid, f"validation errors: {errors[:5]}")
 
     def test_0_0_7_uses_bare_number_scalars(self):
         self.assertEqual(self.doc_007["metadata"]["sff_version"], "0.0.7")
@@ -91,6 +95,18 @@ class TestVersionShapeGuard(unittest.TestCase):
         for hu in self.doc_006["utilities"]["heat_utilities"]:
             self.assertIn("units_for_utility_results", hu)
             self.assertNotIn("quantity_units_for_utility_results", hu)
+
+    def test_0_0_8_validates_and_emits_tea_currency(self):
+        is_valid, errors = self.validate(str(self.path_008), str(SCHEMA_PATH))
+        self.assertTrue(is_valid, f"validation errors: {errors[:5]}")
+        self.assertEqual(self.doc_008["metadata"]["sff_version"], "0.0.8")
+        self.assertEqual(self.doc_008["metadata"]["TEA_currency"], "USD")
+
+    def test_pre_0_0_8_versions_omit_tea_currency(self):
+        # The field is required only from 0.0.8; older exporters must stay
+        # byte-stable and therefore not emit it.
+        self.assertNotIn("TEA_currency", self.doc_007["metadata"])
+        self.assertNotIn("TEA_currency", self.doc_006["metadata"])
 
 
 if __name__ == "__main__":
