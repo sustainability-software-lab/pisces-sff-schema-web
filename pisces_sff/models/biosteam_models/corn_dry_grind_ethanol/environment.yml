@@ -67,3 +67,41 @@ dependencies:
       # HP_2024 environment that exports this model today, so neither is
       # required to load and simulate it.)
       - scikit-learn==1.6.1
+      # Transitive dependencies. Because dependency resolution is off
+      # (PIP_NO_DEPS=1), every transitive requirement of the packages above must
+      # be listed explicitly. These were discovered empirically -- the
+      # environment was built and the model loaded and simulated repeatedly,
+      # each missing import added here at its HP_2024 version -- until every
+      # import resolved. Grouped by the direct dependency that pulls them in.
+      - colorama==0.4.6      # colorpalette
+      - ansicolors==1.1.8    # colorpalette (imports as `colors`)
+      - pytz==2026.2         # pandas
+      - python-dateutil==2.9.0.post0  # pandas, matplotlib
+      - six==1.17.0          # python-dateutil
+      - packaging==25.0      # matplotlib
+      - pillow==11.3.0       # matplotlib (imports as `PIL`)
+      - pyparsing==3.3.2     # matplotlib
+      - cycler==0.12.1       # matplotlib
+      - kiwisolver==1.4.7    # matplotlib
+      - et-xmlfile==2.0.0    # openpyxl
+      - typing_extensions==4.15.0     # ipython, others
+      - importlib_metadata==8.5.0     # backport used under Python 3.9
+      - numpoly==1.3.4       # chaospy
+      # ipython's own dependency tail
+      - traitlets==5.14.3
+      - prompt_toolkit==3.0.52
+      - wcwidth==0.2.13      # prompt_toolkit
+      - pygments==2.19.1
+      - decorator==5.2.1
+      - pickleshare==0.7.5
+      - backcall==0.2.0
+      - stack_data==0.6.3
+      - executing==2.2.1     # stack_data
+      - asttokens==3.0.0     # stack_data
+      - pure_eval==0.2.3     # stack_data
+      - exceptiongroup==1.3.0
+      # jsonschema's own dependency tail (imported by pisces_sff._validate)
+      - attrs==25.4.0
+      - referencing==0.30.2
+      - rpds-py==0.22.3      # attrs/referencing (imports as `rpds`)
+      - jsonschema-specifications==2023.7.1
