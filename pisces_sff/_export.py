@@ -27,6 +27,11 @@ from ._quantity_units import (
     uses_inline_scalar_style,
     quantity_units_for_design_results,
 )
+from .exceptions import (
+    StreamPropertyError,
+    FlowsheetWriteError,
+    DesignInputSpecError,
+)
 
 __all__ = ('export_biosteam_flowsheet', 'available_sff_versions')
 
@@ -262,10 +267,17 @@ def _build_sff_dict(sys, tea=None,
         try:
             stream["stream_properties"]["total_volumetric_flow"] = scalar(rs.F_vol, "m3/h", inline)
         except Exception as e:
+            # A missing liquid molar volume method is expected for some streams;
+            # the volumetric flow is simply omitted. Any other failure is
+            # unexpected -- fail loudly with context rather than dropping into a
+            # debugger (which hangs a TTY-less or CI run).
             if 'liquid molar volume method' in str(e).lower():
                 pass
             else:
-                breakpoint()
+                raise StreamPropertyError(
+                    f"could not compute total_volumetric_flow for stream "
+                    f"{rs.ID!r}: {e}"
+                ) from e
         streams.append(stream)
     
     ## ------ Chemicals ------ ##
@@ -339,16 +351,21 @@ def _build_sff_dict(sys, tea=None,
 
 
 def _write_sff_json(flowsheet_to_export, filepath):
-    """Serialize an assembled SFF document to `filepath` as indented JSON."""
-    # NOTE: the bare `breakpoint()` here is pre-existing (known issue #2) and is
-    # deliberately left in place; the harness runs exports with
-    # PYTHONBREAKPOINT=0, which makes it a no-op rather than an unkillable hang
-    # in a TTY-less subprocess.
+    """
+    Serialize an assembled SFF document to `filepath` as indented JSON.
+
+    Raises
+    ------
+    FlowsheetWriteError
+        If serialization or the file write fails.
+    """
     try:
         with open(filepath, "w") as json_file:
             json.dump(flowsheet_to_export, json_file, indent=4)
-    except:
-        breakpoint()
+    except Exception as e:
+        raise FlowsheetWriteError(
+            f"could not write SFF document to {filepath!r}: {e}"
+        ) from e
 
 
 #%% Export function for SFF schema v0.0.5
@@ -766,6 +783,9 @@ def get_design_input_specs(unit): # !!! update
         if hasattr(unit, p):
             try:
                 exec(f'dis[p] = unit.{p}')
-            except:
-                breakpoint()
+            except Exception as e:
+                raise DesignInputSpecError(
+                    f"could not read design input spec {p!r} for unit "
+                    f"{getattr(unit, 'ID', unit)!r}: {e}"
+                ) from e
     return dis

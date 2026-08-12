@@ -15,6 +15,9 @@ from ._version import *
 # package version and the spec version can never disagree. See _version.py.
 __version__ = read_schema_version()
 
+from . import exceptions
+from .exceptions import *
+
 from . import _export
 from ._export import *
 
@@ -27,6 +30,7 @@ from ._validate import *
 
 __all__ = (
      *_version.__all__,
+     *exceptions.__all__,
      *_export.__all__,
      *_harness.__all__,
      *_validate.__all__,

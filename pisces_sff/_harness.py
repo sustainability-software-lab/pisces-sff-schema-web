@@ -505,8 +505,10 @@ def export_model(model_dir, output_path, recreate_env=False, conda_exe=None,
                               'CONDA_PYTHON_EXE', 'PYTHONHOME')}
     child_env['PYTHONPATH'] = str(REPO_ROOT)
     child_env['PYTHONNOUSERSITE'] = '1'
-    # _export.py contains bare breakpoint() calls (a known issue). In a child
-    # process with no TTY they hang forever; this makes them no-ops instead.
+    # The exporter no longer contains bare breakpoint() calls (its error
+    # branches now raise from pisces_sff.exceptions). This remains as a
+    # defensive guard: any stray breakpoint() reached in this TTY-less child --
+    # from our code or a dependency -- would hang forever, so neutralize it.
     child_env['PYTHONBREAKPOINT'] = '0'
 
     command = [str(environment_python(prefix)), '-m', 'pisces_sff._runner',
