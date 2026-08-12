@@ -1,6 +1,9 @@
-# Local-only Claude Code working files
+# Claude Code local working files #
+###################################
 CLAUDE.md
+.claude
 .claude/
+docs/superpowers
 
 # Python
 __pycache__/
