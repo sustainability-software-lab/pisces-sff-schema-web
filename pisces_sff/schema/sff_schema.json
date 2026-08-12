@@ -4,7 +4,43 @@
   "version": "0.0.6",
   "description": "A standardized, machine-readable representation of a process flowsheet designed for interoperability and data exchange. It represents the process as a directed graph with rich data attached to both nodes (units) and edges (streams).",
   "type": "object",
+  "definitions": {
+    "quantity_unit_entry": {
+      "type": "object",
+      "description": "A quantity-unit registry entry: the field names a quantity appears under, and its unit string.",
+      "properties": {
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Field names this quantity appears under in the flowsheet (so a consumer can resolve, e.g., 'T' or 'total_mass_flow' to this quantity)."
+        },
+        "quantity_units": {
+          "type": "string",
+          "description": "Unit string for this quantity (BioSTEAM default)."
+        }
+      },
+      "required": ["aliases", "quantity_units"]
+    }
+  },
   "properties": {
+    "quantity_units_global": {
+      "description": "Global default quantity units for widely-used quantities, keyed by canonical quantity name. 'aliases' lists the field names each quantity appears under across this flowsheet (so a consumer can resolve, e.g., 'T' or 'total_mass_flow' to its quantity units); 'quantity_units' is the unit string. Values of these quantities appear as bare numbers elsewhere in the flowsheet and take their units from here. Note: 'units' in this schema always means unit operations; unit-of-measure information is always called 'quantity units'.",
+      "type": "object",
+      "properties": {
+        "temperature":             { "$ref": "#/definitions/quantity_unit_entry" },
+        "pressure":                { "$ref": "#/definitions/quantity_unit_entry" },
+        "mass_flow":               { "$ref": "#/definitions/quantity_unit_entry" },
+        "molar_flow":              { "$ref": "#/definitions/quantity_unit_entry" },
+        "volumetric_flow":         { "$ref": "#/definitions/quantity_unit_entry" },
+        "molar_mass":              { "$ref": "#/definitions/quantity_unit_entry" },
+        "price":                   { "$ref": "#/definitions/quantity_unit_entry" },
+        "electrical_energy_price": { "$ref": "#/definitions/quantity_unit_entry" },
+        "regeneration_price":      { "$ref": "#/definitions/quantity_unit_entry" },
+        "heat_transfer_price":     { "$ref": "#/definitions/quantity_unit_entry" }
+      },
+      "additionalProperties": { "$ref": "#/definitions/quantity_unit_entry" }
+    },
     "metadata": {
       "description": "Information about the source, context, and version of the flowsheet.",
       "type": "object",
