@@ -86,10 +86,10 @@ The `streams` array maps out the connectivity of the flowsheet, defining how mat
 - **sink_unit_id**: The ID of the receiving unit operation. *(Required)*
 - **stream_description**: A qualitative description (e.g., "Make-up solvent").
 - **price**: A bare number giving the cost per quantity of the stream material. Its units come from `quantity_units_global` under `price` (BioSTEAM-native default `USD/kg`), not an inline unit string.
-- **stream_properties**: A detailed block containing strictly required state information. Each scalar below is a bare number whose units come from `quantity_units_global` (BioSTEAM-native defaults noted):
-    - **total_mass_flow** (`kg/hr`)
-    - **total_volumetric_flow** (`m3/hr`)
+- **stream_properties**: A detailed block of stream state. `total_molar_flow`, `temperature`, and `pressure` are required; the remaining scalars are optional. Each scalar below is a bare number whose units come from `quantity_units_global` (BioSTEAM-native defaults noted):
+    - **total_molar_flow** (`kmol/hr`)
     - **temperature** (`K`)
     - **pressure** (`Pa`)
-    - **total_molar_flow** (`kmol/hr`, optional)
+    - **total_mass_flow** (`kg/hr`, optional)
+    - **total_volumetric_flow** (`m3/hr`, optional)
     - **composition**: An array defining the phase, component name (linking to the `chemicals` array IDs), and exact mol fraction.
