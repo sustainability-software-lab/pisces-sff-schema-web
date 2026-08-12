@@ -33,7 +33,7 @@ class TestHierarchy(unittest.TestCase):
     def test_all_names_are_exported(self):
         self.assertEqual(
             set(self.m.__all__),
-            {"SFFError", "SFFExportError", "StreamPropertyError",
+            {"SFFError", "SFFExportError",
              "FlowsheetWriteError", "DesignInputSpecError"},
         )
 
@@ -44,8 +44,7 @@ class TestHierarchy(unittest.TestCase):
         self.assertTrue(issubclass(self.m.SFFExportError, self.m.SFFError))
 
     def test_specific_errors_derive_from_export_error(self):
-        for name in ("StreamPropertyError", "FlowsheetWriteError",
-                     "DesignInputSpecError"):
+        for name in ("FlowsheetWriteError", "DesignInputSpecError"):
             with self.subTest(exception=name):
                 self.assertTrue(
                     issubclass(getattr(self.m, name), self.m.SFFExportError)
@@ -55,11 +54,11 @@ class TestHierarchy(unittest.TestCase):
         # Catching the base must catch any specific subclass — the point of the
         # hierarchy for a consumer that wants to handle any export failure.
         try:
-            raise self.m.StreamPropertyError("boom")
+            raise self.m.DesignInputSpecError("boom")
         except self.m.SFFError as caught:
-            self.assertIsInstance(caught, self.m.StreamPropertyError)
+            self.assertIsInstance(caught, self.m.DesignInputSpecError)
         else:
-            self.fail("StreamPropertyError was not caught as SFFError")
+            self.fail("DesignInputSpecError was not caught as SFFError")
 
     def test_chaining_preserves_cause(self):
         original = ValueError("root cause")

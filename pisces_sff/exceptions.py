@@ -20,7 +20,6 @@ Hierarchy::
 
     SFFError                     (base for everything this package raises)
     └── SFFExportError           (a flowsheet export could not be completed)
-        ├── StreamPropertyError  (a stream property could not be computed)
         ├── FlowsheetWriteError  (the assembled document could not be written)
         └── DesignInputSpecError (a unit's design input spec could not be read)
 
@@ -32,7 +31,6 @@ raises.
 __all__ = (
     "SFFError",
     "SFFExportError",
-    "StreamPropertyError",
     "FlowsheetWriteError",
     "DesignInputSpecError",
 )
@@ -48,17 +46,6 @@ class SFFExportError(SFFError):
 
     Base class for the specific failures the BioSTEAM exporter can hit while
     assembling or writing an SFF document.
-    """
-
-
-class StreamPropertyError(SFFExportError):
-    """
-    A stream property could not be computed while assembling the document.
-
-    Raised when reading a property off a BioSTEAM stream fails for a reason the
-    exporter does not know how to tolerate. (The known, benign
-    ``'liquid molar volume method'`` failure for volumetric flow is skipped
-    silently rather than raised.)
     """
 
 

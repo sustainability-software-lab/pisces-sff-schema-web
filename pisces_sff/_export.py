@@ -10,6 +10,7 @@ import json
 import inspect
 import sys
 import re
+import warnings
 import numpy as np
 
 from types import FunctionType
@@ -28,7 +29,6 @@ from ._quantity_units import (
     quantity_units_for_design_results,
 )
 from .exceptions import (
-    StreamPropertyError,
     FlowsheetWriteError,
     DesignInputSpecError,
 )
@@ -267,17 +267,17 @@ def _build_sff_dict(sys, tea=None,
         try:
             stream["stream_properties"]["total_volumetric_flow"] = scalar(rs.F_vol, "m3/h", inline)
         except Exception as e:
-            # A missing liquid molar volume method is expected for some streams;
-            # the volumetric flow is simply omitted. Any other failure is
-            # unexpected -- fail loudly with context rather than dropping into a
-            # debugger (which hangs a TTY-less or CI run).
-            if 'liquid molar volume method' in str(e).lower():
-                pass
-            else:
-                raise StreamPropertyError(
+            # total_volumetric_flow is optional in the schema. A missing liquid
+            # molar volume method is a common, expected reason it cannot be
+            # computed; other failures are unexpected but still non-fatal. Either
+            # way, omit it for this stream and continue rather than aborting the
+            # whole export -- but warn on the unexpected case so it is not lost.
+            if 'liquid molar volume method' not in str(e).lower():
+                warnings.warn(
                     f"could not compute total_volumetric_flow for stream "
-                    f"{rs.ID!r}: {e}"
-                ) from e
+                    f"{rs.ID!r}; omitting it: {e}",
+                    stacklevel=2,
+                )
         streams.append(stream)
     
     ## ------ Chemicals ------ ##
