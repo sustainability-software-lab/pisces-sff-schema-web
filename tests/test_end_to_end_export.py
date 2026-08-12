@@ -92,7 +92,7 @@ class TestEndToEndExport(unittest.TestCase):
         )
 
     def test_stream_mass_flows_match_the_baseline(self):
-        flows = {s["id"]: s["stream_properties"]["total_mass_flow"]["value"]
+        flows = {s["id"]: s["stream_properties"]["total_mass_flow"]
                  for s in self.flowsheet["streams"]}
         for stream_id, expected in self.baseline["stream_mass_flows"].items():
             with self.subTest(stream=stream_id):

@@ -46,15 +46,33 @@ class TestCornDryGrindEthanolExport(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from pisces_sff import _runner
+        from pisces_sff import _export, _runner
         from pisces_sff._validate import validate_json_against_schema
 
         cls.validate = staticmethod(validate_json_against_schema)
         cls.tmp = tempfile.TemporaryDirectory()
         cls.output = Path(cls.tmp.name) / "corn_dry_grind_ethanol.json"
-        _runner.run_model_export(MODEL_DIR, cls.output, sff_version="0.0.6")
+
+        # One simulation, exported at two schema versions: 0.0.7 exercises the
+        # new quantity-unit shape (validated below); 0.0.6 guards byte-stability
+        # of the historical inline shape. Both come from the same System, so the
+        # guard adds no second simulation.
+        module = _runner.load_model_module(MODEL_DIR)
+        repro = _runner.build_reproducibility(MODEL_DIR, module)
+        system, tea = module.load()
+        kwargs = dict(module.EXPORT_KWARGS)
+        _export.export_biosteam_flowsheet(
+            system, str(cls.output), sff_version="0.0.7", tea=tea,
+            reproducibility=repro, **kwargs)
         with cls.output.open("r", encoding="utf-8") as f:
             cls.flowsheet = json.load(f)
+
+        cls.output_006 = Path(cls.tmp.name) / "corn_006.json"
+        _export.export_biosteam_flowsheet(
+            system, str(cls.output_006), sff_version="0.0.6", tea=tea,
+            reproducibility=repro, **kwargs)
+        with cls.output_006.open("r", encoding="utf-8") as f:
+            cls.flowsheet_006 = json.load(f)
 
     @classmethod
     def tearDownClass(cls):
@@ -65,7 +83,7 @@ class TestCornDryGrindEthanolExport(unittest.TestCase):
         self.assertTrue(is_valid, f"validation errors: {errors[:5]}")
 
     def test_sff_version_is_recorded(self):
-        self.assertEqual(self.flowsheet["metadata"]["sff_version"], "0.0.6")
+        self.assertEqual(self.flowsheet["metadata"]["sff_version"], "0.0.7")
 
     def test_reproducibility_block_is_present(self):
         self.assertIn("reproducibility", self.flowsheet["metadata"])
@@ -130,6 +148,39 @@ class TestCornDryGrindEthanolExport(unittest.TestCase):
             with self.subTest(stream=stream["id"]):
                 self.assertIn(stream["source_unit_id"], unit_ids)
                 self.assertIn(stream["sink_unit_id"], unit_ids)
+
+    def test_quantity_units_global_is_present_and_biosteam_native(self):
+        reg = self.flowsheet["quantity_units_global"]
+        self.assertEqual(reg["temperature"]["quantity_units"], "K")
+        self.assertEqual(reg["mass_flow"]["quantity_units"], "kg/hr")
+        self.assertEqual(reg["price"]["quantity_units"], "USD/kg")
+
+    def test_stream_scalars_are_bare_numbers(self):
+        sp = self.flowsheet["streams"][0]["stream_properties"]
+        self.assertIsInstance(sp["temperature"], (int, float))
+        self.assertIsInstance(self.flowsheet["streams"][0]["price"], (int, float))
+
+    def test_units_carry_design_result_quantity_units(self):
+        self.assertTrue(
+            all("quantity_units_for_design_results" in u for u in self.flowsheet["units"])
+        )
+
+    def test_heat_utilities_use_the_renamed_results_key(self):
+        for hu in self.flowsheet["utilities"]["heat_utilities"]:
+            self.assertIn("quantity_units_for_utility_results", hu)
+            self.assertNotIn("units_for_utility_results", hu)
+
+    def test_v0_0_6_export_keeps_the_inline_shape(self):
+        # Byte-stability guard: the historical exporter must still emit inline
+        # {"value","units"} scalars, the legacy results key, and NO registry.
+        self.assertEqual(self.flowsheet_006["metadata"]["sff_version"], "0.0.6")
+        self.assertNotIn("quantity_units_global", self.flowsheet_006)
+        sp = self.flowsheet_006["streams"][0]["stream_properties"]
+        self.assertIn("value", sp["temperature"])
+        self.assertIn("units", sp["temperature"])
+        for hu in self.flowsheet_006["utilities"]["heat_utilities"]:
+            self.assertIn("units_for_utility_results", hu)
+            self.assertNotIn("quantity_units_for_utility_results", hu)
 
 
 if __name__ == "__main__":
