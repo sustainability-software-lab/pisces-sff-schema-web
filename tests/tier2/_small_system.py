@@ -21,6 +21,17 @@ def build_small_system_and_tea():
 
     import biosteam as bst
 
+    # Guard against the Tier-1 sys.modules biosteam stub bleeding into this
+    # process: if Tier 1 (which installs the stub at import time) and this tier
+    # are ever collected into one process, `bst` here would be the fake and the
+    # real-object calls below would fail with a confusing AttributeError. Fail
+    # loudly and legibly instead. The sanctioned workflow runs each simulating
+    # tier in its own process (pytest tests/tier2), where this never triggers.
+    assert not getattr(bst, "_SFF_STUB", False), (
+        "Tier 2 got the Tier-1 biosteam stub; run simulating tiers in separate "
+        "processes (e.g. `pytest tests/tier2`), not alongside Tier 1."
+    )
+
     bst.settings.set_thermo(["Water", "Ethanol"])
     feed = bst.Stream("feed", Water=1000, Ethanol=100, units="kg/hr", T=298.15)
     feed.price = 0.5

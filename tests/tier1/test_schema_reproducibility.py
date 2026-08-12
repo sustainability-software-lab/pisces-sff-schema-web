@@ -11,7 +11,7 @@
 # PyPI version, and a commit is meaningless without the repository URL.
 #
 # Design notes:
-#   * As in tests/test_schema_microorganisms.py, this test uses `jsonschema`
+#   * As in tests/tier1/test_schema_microorganisms.py, this test uses `jsonschema`
 #     directly rather than importing `pisces_sff`, which would drag in the
 #     heavy biosteam/thermosteam stack for what is purely a schema check.
 

@@ -2,7 +2,7 @@
 # Pins the additive `quantity_units_global` registry and its reusable
 # `definitions/quantity_unit_entry`. Import-light: validates against the
 # committed schema file with jsonschema directly, never importing pisces_sff
-# (which would drag in biosteam via _export). See tests/test_schema_microorganisms.py
+# (which would drag in biosteam via _export). See tests/tier1/test_schema_microorganisms.py
 # for the same rationale.
 #
 # Why pinned: quantity_units_global is the single machine-readable source of
