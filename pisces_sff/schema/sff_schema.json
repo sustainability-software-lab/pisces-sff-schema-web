@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Standard Flowsheet Format (SFF)",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "A standardized, machine-readable representation of a process flowsheet designed for interoperability and data exchange. It represents the process as a directed graph with rich data attached to both nodes (units) and edges (streams).",
   "type": "object",
   "definitions": {
@@ -330,6 +330,11 @@
             "type": "object",
             "description": "Design results for this unit operation. This object, combined with design_input_specs, should provide a full design description for this unit operation (to the highest level of detail modeled)."
           },
+          "quantity_units_for_design_results": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Quantity units for each key in 'design_results', by the same key. Sourced from the simulator's per-design-result unit strings (BioSTEAM '_units'). A key mapped to '' is dimensionless or has no declared unit."
+          },
           "purchase_costs": {
             "type": "object",
             "additionalProperties": {
@@ -389,81 +394,33 @@
             "description": "A qualitative description of the stream from the perspective of either the source (e.g., 'Centrifugate') or sink unit operation (e.g., 'Make-up solvent')."
           },
           "price": {
-            "type": "object",
-            "properties": {
-              "value": {
-                "type": "number"
-              },
-              "units": {
-                "type": "string",
-                "default": "$/kg"
-              }
-            }
+            "type": "number",
+            "description": "Price per unit mass of the stream material. Quantity units are declared in the top-level 'quantity_units_global' under 'price' (default 'USD/kg')."
           },
           "stream_properties": {
             "description": "Structured object specifying the properties of the stream.",
             "type": "object",
             "properties": {
               "total_mass_flow": {
-                "type": "object",
-                "properties": {
-                  "value": {
-                    "type": "number"
-                  },
-                  "units": {
-                    "type": "string",
-                    "default": "kg/h"
-                  }
-                }
+                "type": "number",
+                "description": "Total mass flow rate. Quantity units: quantity_units_global 'mass_flow' (default 'kg/hr')."
               },
               "total_volumetric_flow": {
-                "type": "object",
-                "properties": {
-                  "value": {
-                    "type": "number"
-                  },
-                  "units": {
-                    "type": "string",
-                    "default": "m3/h"
-                  }
-                }
+                "type": "number",
+                "description": "Total volumetric flow rate. Quantity units: quantity_units_global 'volumetric_flow' (default 'm3/hr')."
               },
               "total_molar_flow": {
-                "type": "object",
-                "properties": {
-                  "value": {
-                    "type": "number"
-                  },
-                  "units": {
-                    "type": "string",
-                    "default": "kmol/h"
-                  }
-                }
+                "type": "number",
+                "description": "Total molar flow rate. Quantity units: quantity_units_global 'molar_flow' (default 'kmol/hr')."
               },
               "temperature": {
-                "type": "object",
-                "properties": {
-                  "value": {
-                    "type": "number",
-                    "minimum": 0
-                  },
-                  "units": {
-                    "type": "string",
-                    "default": "K"
-                  }
-                }
+                "type": "number",
+                "minimum": 0,
+                "description": "Temperature. Quantity units: quantity_units_global 'temperature' (default 'K')."
               },
               "pressure": {
-                "type": "object",
-                "properties": {
-                  "value": {
-                    "type": "number"
-                  },
-                  "units": {
-                    "type": "string",
-                    "default": "Pa"
-                  }
-                }
+                "type": "number",
+                "description": "Pressure. Quantity units: quantity_units_global 'pressure' (default 'Pa')."
               },
               "composition": {
                 "description": "An array detailing the chemical components of the stream.",
@@ -579,70 +536,30 @@
                     "description": "A unique identifier for this utility type (e.g., high-pressure steam)."
                   },
                   "temperature": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number"
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "K"
-                      }
-                    }
+                    "type": "number",
+                    "description": "Temperature. Quantity units: quantity_units_global 'temperature' (default 'K')."
                   },
                   "pressure": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number"
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "Pa"
-                      }
-                    }
+                    "type": "number",
+                    "description": "Pressure. Quantity units: quantity_units_global 'pressure' (default 'Pa')."
                   },
                   "regeneration_price": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number",
-                        "default": 0
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "$/kmol"
-                      }
-                    }
+                    "type": "number",
+                    "default": 0,
+                    "description": "Regeneration price. Quantity units: quantity_units_global 'regeneration_price' (default 'USD/kmol')."
                   },
                   "heat_transfer_price": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number",
-                        "default": 0
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "$/kJ"
-                      }
-                    }
+                    "type": "number",
+                    "default": 0,
+                    "description": "Heat-transfer price. Quantity units: quantity_units_global 'heat_transfer_price' (default 'USD/kJ')."
                   },
                   "heat_transfer_efficiency": {
                     "type": "number",
                     "default": 1
                   },
                   "temperature_limit": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number"
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "K"
-                      }
-                    }
+                    "type": "number",
+                    "description": "Temperature limit. Quantity units: quantity_units_global 'temperature' (default 'K')."
                   },
                   "composition": {
                     "description": "An array detailing the chemical components of the heating or cooling utility.",
@@ -669,9 +586,9 @@
                       ]
                     }
                   },
-                  "units_for_utility_results": {
+                  "quantity_units_for_utility_results": {
                     "type": "string",
-                    "description": "Units (e.g., 'kJ/h') for the values associated with this utility in the 'utility_results' of unit operations in this flowsheet."
+                    "description": "Quantity units (e.g., 'kJ/hr') for this utility's per-unit-operation values in 'utility_consumption_results'/'utility_production_results'."
                   }
                 },
                 "required": [
@@ -679,7 +596,7 @@
                   "temperature",
                   "pressure",
                   "composition",
-                  "units_for_utility_results"
+                  "quantity_units_for_utility_results"
                 ],
                 "additionalProperties": false
               }
@@ -694,27 +611,19 @@
                     "type": "string",
                     "description": "A unique identifier for this power utility type (e.g., 'marginal electricity')."
                   },
-                  "price": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number",
-                        "default": 0
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "$/kWh"
-                      }
-                    }
+                  "electrical_energy_price": {
+                    "type": "number",
+                    "default": 0,
+                    "description": "Electrical energy price. Quantity units: quantity_units_global 'electrical_energy_price' (default 'USD/kWh')."
                   },
-                  "units_for_utility_results": {
+                  "quantity_units_for_utility_results": {
                     "type": "string",
-                    "description": "Units (e.g., 'kW') for the values associated with this utility in the 'utility_results' of unit operations in this flowsheet."
+                    "description": "Quantity units (e.g., 'kW') for this utility's per-unit-operation values in 'utility_consumption_results'/'utility_production_results'."
                   }
                 },
                 "required": [
                   "id",
-                  "units_for_utility_results"
+                  "quantity_units_for_utility_results"
                 ],
                 "additionalProperties": {
                   "type": "number"
@@ -732,41 +641,17 @@
                     "description": "A unique identifier for this utility type (e.g., natural gas)."
                   },
                   "temperature": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number"
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "K"
-                      }
-                    }
+                    "type": "number",
+                    "description": "Temperature. Quantity units: quantity_units_global 'temperature' (default 'K')."
                   },
                   "pressure": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number"
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "Pa"
-                      }
-                    }
+                    "type": "number",
+                    "description": "Pressure. Quantity units: quantity_units_global 'pressure' (default 'Pa')."
                   },
                   "price": {
-                    "type": "object",
-                    "properties": {
-                      "value": {
-                        "type": "number",
-                        "default": 0
-                      },
-                      "units": {
-                        "type": "string",
-                        "default": "$/kg"
-                      }
-                    }
+                    "type": "number",
+                    "default": 0,
+                    "description": "Price per unit mass. Quantity units: quantity_units_global 'price' (default 'USD/kg')."
                   },
                   "composition": {
                     "description": "An array detailing the chemical components of the utility.",
@@ -793,9 +678,9 @@
                       ]
                     }
                   },
-                  "units_for_utility_results": {
+                  "quantity_units_for_utility_results": {
                     "type": "string",
-                    "description": "Units (e.g., 'kg/h') for the values associated with this utility in the 'utility_results' of unit operations in this flowsheet."
+                    "description": "Quantity units (e.g., 'kg/hr') for this utility's per-unit-operation values in 'utility_consumption_results'/'utility_production_results'."
                   }
                 },
                 "required": [
@@ -803,7 +688,7 @@
                   "temperature",
                   "pressure",
                   "composition",
-                  "units_for_utility_results"
+                  "quantity_units_for_utility_results"
                 ],
                 "additionalProperties": false
               }

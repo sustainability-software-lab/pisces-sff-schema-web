@@ -4,13 +4,14 @@ The Standard Flowsheet Format (SFF) is a JSON document strictly adhering to our 
 
 ## Core Properties
 
-Every valid SFF JSON object contains five essential properties at its root:
+Every valid SFF JSON object contains six essential properties at its root:
 
 1. `metadata`: Contextual data about the process simulation.
 2. `units`: The unit operations (nodes).
 3. `streams`: Process streams connecting the units (edges).
 4. `utilities`: Global heating, cooling, and power utilities used by the process.
 5. `chemicals`: A list of pure chemical components involved.
+6. `quantity_units_global`: A registry of default quantity units for widely-used quantities and prices, keyed by canonical name; each entry carries the `aliases` a quantity appears under and its `quantity_units` string. Bare numeric quantities elsewhere in the file resolve their units here.
 
 ---
 
@@ -39,13 +40,23 @@ The `chemicals` array defines the chemical species available in the simulation. 
 
 ---
 
+### Quantity Units Global
+
+The `quantity_units_global` object is a registry of default quantity units for widely-used quantities and prices, keyed by canonical name (e.g., `temperature`, `mass_flow`, `price`). Each entry carries:
+- **aliases**: The field names a quantity appears under across the flowsheet (e.g., `temperature` also covers `T` and `temperature_limit`).
+- **quantity_units**: The unit string for that quantity (e.g., `"K"`, `"kg/hr"`, `"USD/kg"`).
+
+Bare numeric scalars elsewhere in the file (stream and utility properties, prices) resolve their units by looking up the relevant field name against this registry's aliases.
+
+---
+
 ### Utilities
 
 The `utilities` object is broken down into three main categories of global utilities:
 
-- **heat_utilities**: Heating and cooling utility types (e.g., "high-pressure steam"). Each details its temperature, pressure, regeneration and heat transfer prices, composition, and results unit.
-- **power_utilities**: Electrical utility types (e.g., "marginal electricity"), listing their electricity price.
-- **other_utilities**: Alternative utilities (e.g., combustion-based like "natural gas") with parameters similar to heat utilities.
+- **heat_utilities**: Heating and cooling utility types (e.g., "high-pressure steam"). Each details its temperature, pressure, regeneration and heat transfer prices, composition, and `quantity_units_for_utility_results` (the units of its per-unit-operation values in `utility_consumption_results`/`utility_production_results`).
+- **power_utilities**: Electrical utility types (e.g., "marginal electricity"), listing their `electrical_energy_price` and `quantity_units_for_utility_results`.
+- **other_utilities**: Alternative utilities (e.g., combustion-based like "natural gas") with parameters similar to heat utilities, including `quantity_units_for_utility_results`.
 
 ---
 
@@ -60,6 +71,7 @@ The `units` array contains all operational nodes of the process graph (e.g., rea
 - **thermo_property_package**: Defines how thermodynamic parameters (mixture, gamma, phi, PCF) were estimated.
 - **reactions**: Detailed definitions for chemical or biological reactions taking place inside the unit, indicating parallel indices, conversions, and target reactants.
 - **design_results**: Generated metrics for the operation of this unit.
+- **quantity_units_for_design_results**: Quantity units for each key in `design_results`, by the same key (from the simulator's `_units`).
 - **purchase_costs** & **installed_costs**: Itemized economic data detailing the cost of this particular unit operation.
 - **utility_consumption_results** & **utility_production_results**: Realized consumption and generation of power/heat per utility type (linking back to the IDs declared in `utilities`).
 
@@ -73,11 +85,11 @@ The `streams` array maps out the connectivity of the flowsheet, defining how mat
 - **source_unit_id**: The ID of the originating unit operation. *(Required)*
 - **sink_unit_id**: The ID of the receiving unit operation. *(Required)*
 - **stream_description**: A qualitative description (e.g., "Make-up solvent").
-- **price**: Cost per quantity of the stream material (e.g., $/kg).
-- **stream_properties**: A detailed block containing strictly required state information:
-    - **total_mass_flow**
-    - **total_volumetric_flow**
-    - **temperature**
-    - **pressure**
-    - **total_molar_flow** (optional)
+- **price**: A bare number giving the cost per quantity of the stream material. Its units come from `quantity_units_global` under `price` (BioSTEAM-native default `USD/kg`), not an inline unit string.
+- **stream_properties**: A detailed block containing strictly required state information. Each scalar below is a bare number whose units come from `quantity_units_global` (BioSTEAM-native defaults noted):
+    - **total_mass_flow** (`kg/hr`)
+    - **total_volumetric_flow** (`m3/hr`)
+    - **temperature** (`K`)
+    - **pressure** (`Pa`)
+    - **total_molar_flow** (`kmol/hr`, optional)
     - **composition**: An array defining the phase, component name (linking to the `chemicals` array IDs), and exact mol fraction.

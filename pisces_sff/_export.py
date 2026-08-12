@@ -21,6 +21,13 @@ from biosteam import PowerUtility, System
 
 import biosteam as bst
 
+from ._quantity_units import (
+    QUANTITY_UNITS_GLOBAL,
+    scalar,
+    uses_inline_scalar_style,
+    quantity_units_for_design_results,
+)
+
 __all__ = ('export_biosteam_flowsheet', 'available_sff_versions')
 
 #%% Entry-point export function
@@ -149,8 +156,14 @@ def _build_sff_dict(sys, tea=None,
     all_sys_products = list(sys.products)
     if tea is None:
         tea = sys.TEA
-    
-    ## ------- Metadata ------- ## 
+    # Pre-0.0.7 emits inline {"value","units"} scalars and the legacy field
+    # names; 0.0.7+ emits bare numbers whose units live in quantity_units_global.
+    # Older exporters must stay byte-stable so historical exports reproduce, so
+    # every version-dependent shape below is gated on this one flag.
+    inline = uses_inline_scalar_style(sff_version)
+    results_key = "units_for_utility_results" if inline else "quantity_units_for_utility_results"
+
+    ## ------- Metadata ------- ##
     metadata = {}
     # Reported from the requested version rather than a hardcoded literal: this
     # previously read '0.0.3' regardless of the version exported against, so
@@ -225,6 +238,8 @@ def _build_sff_dict(sys, tea=None,
                 "utility_consumption_results": u_cons,
                 "utility_production_results": u_prod,
                 }
+        if not inline:
+            unit["quantity_units_for_design_results"] = quantity_units_for_design_results(ru)
         units.append(unit)
         
     ## ------ Streams ------ ##
@@ -235,17 +250,17 @@ def _build_sff_dict(sys, tea=None,
         stream = {"id": rs.ID,
                   "source_unit_id": rs.source.ID if rs.source is not None else "None",
                   "sink_unit_id": rs.sink.ID if rs.sink is not None else "None",
-                  "price": {"value": rs.price, "units": "$/kg"},
+                  "price": scalar(rs.price, "$/kg", inline),
                   "stream_properties": {
-                      "total_mass_flow": {"value": rs.F_mass, "units": "kg/h"},
-                      "total_molar_flow": {"value": rs.F_mol, "units": "kmol/h"},
-                      "temperature": {"value": rs.T, "units": "K"},
-                      "pressure": {"value": rs.P, "units": "Pa"},
+                      "total_mass_flow": scalar(rs.F_mass, "kg/h", inline),
+                      "total_molar_flow": scalar(rs.F_mol, "kmol/h", inline),
+                      "temperature": scalar(rs.T, "K", inline),
+                      "pressure": scalar(rs.P, "Pa", inline),
                       "composition": get_composition(rs),
                       }
                   }
         try:
-            stream["stream_properties"]["total_volumetric_flow"] = {"value": rs.F_vol, "units": "m3/h"}
+            stream["stream_properties"]["total_volumetric_flow"] = scalar(rs.F_vol, "m3/h", inline)
         except Exception as e:
             if 'liquid molar volume method' in str(e).lower():
                 pass
@@ -278,44 +293,49 @@ def _build_sff_dict(sys, tea=None,
     for hu_agent in all_hu_agents:
         hu = {
               "id": hu_agent.ID,
-              "temperature": {"value": hu_agent.T, "units": "K"},
-              "pressure": {"value": hu_agent.P, "units": "Pa"},
-              "regeneration_price": {"value": hu_agent.regeneration_price, "units": "$/kmol"},
-              "heat_transfer_price": {"value": hu_agent.heat_transfer_price, "units": "$/kJ"},
+              "temperature": scalar(hu_agent.T, "K", inline),
+              "pressure": scalar(hu_agent.P, "Pa", inline),
+              "regeneration_price": scalar(hu_agent.regeneration_price, "$/kmol", inline),
+              "heat_transfer_price": scalar(hu_agent.heat_transfer_price, "$/kJ", inline),
               "heat_transfer_efficiency": hu_agent.heat_transfer_efficiency if hu_agent.heat_transfer_efficiency is not None else 1.0,
               "composition": get_composition(hu_agent),
-              "units_for_utility_results": "kJ/h",
               }
+        hu[results_key] = "kJ/h" if inline else "kJ/hr"
         heat_utilities.append(hu)
-        
+
     power_utilities = []
     for pu_agent in all_pu_agents:
-        pu = {"id": "Marginal grid electricity",
-              "price": {"value": pu_agent.price, "units": "$/kWh"},
-              "units_for_utility_results": "kW",
-              }
+        pu = {"id": "Marginal grid electricity"}
+        if inline:
+            pu["price"] = {"value": pu_agent.price, "units": "$/kWh"}
+        else:
+            pu["electrical_energy_price"] = pu_agent.price
+        pu[results_key] = "kW"
         power_utilities.append(pu)
-    
+
     other_utilities = []
     for ou_agent in all_ou_agents:
         ou = {
               "id": ou_agent.ID,
-              "temperature": {"value": ou_agent.T, "units": "K"},
-              "pressure": {"value": ou_agent.P, "units": "Pa"},
-              "price": {"value": ou_agent.price or ng_price, "units": "$/kg"},
-              "units_for_utility_results": "kg/h",
-              "composition": get_composition(ou_agent),
+              "temperature": scalar(ou_agent.T, "K", inline),
+              "pressure": scalar(ou_agent.P, "Pa", inline),
+              "price": scalar(ou_agent.price or ng_price, "$/kg", inline),
               }
+        ou[results_key] = "kg/h" if inline else "kg/hr"
+        ou["composition"] = get_composition(ou_agent)
         other_utilities.append(ou)
-    
-    return {"metadata": metadata,
-            "units": units,
-            "streams": streams,
-            "chemicals": chemicals,
-            "utilities": {"heat_utilities": heat_utilities,
-                          "power_utilities": power_utilities,
-                          "other_utilities": other_utilities},
-            }
+
+    document = {"metadata": metadata,
+                "units": units,
+                "streams": streams,
+                "chemicals": chemicals,
+                "utilities": {"heat_utilities": heat_utilities,
+                              "power_utilities": power_utilities,
+                              "other_utilities": other_utilities},
+                }
+    if not inline:
+        document["quantity_units_global"] = QUANTITY_UNITS_GLOBAL
+    return document
 
 
 def _write_sff_json(flowsheet_to_export, filepath):
@@ -378,6 +398,54 @@ def export_biosteam_flowsheet_sff_0_0_6(sys, filepath, tea=None,
         Built by :func:`pisces_sff._runner.build_reproducibility`. Omitted
         entirely when falsy, so hand exports still validate -- the schema marks
         the block optional.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.7
+def export_biosteam_flowsheet_sff_0_0_7(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.7', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.7.
+
+    Identical to the v0.0.6 exporter except for the quantity-unit shape the
+    shared builder emits at this version: scalars and prices are bare numbers
+    whose units are declared once in the top-level ``quantity_units_global``
+    registry, each unit operation carries ``quantity_units_for_design_results``,
+    the power-utility price is ``electrical_energy_price``, and the utility
+    results-unit key is ``quantity_units_for_utility_results``.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
     sff_version : str, optional
         Version recorded as ``metadata['sff_version']``.
     """
