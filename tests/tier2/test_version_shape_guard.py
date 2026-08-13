@@ -175,6 +175,21 @@ class TestVersionShapeGuard(unittest.TestCase):
                 else:
                     self.assertEqual(base[0], "output")
 
+    def test_0_0_10_emits_designation_roles(self):
+        # The small fixture's priced feed (Ethanol-bearing, the sole system feed)
+        # is both a purchased raw material and the feedstock; its heated outlet is
+        # a priced product. This pins get_stream_roles's designation branches --
+        # purchased_raw_material, feedstock, product, and the input co-occurrence
+        # of purchased_raw_material with feedstock -- against real exported data,
+        # not just the base topology role.
+        input_stream = next(s for s in self.doc_010["streams"]
+                            if s["source_unit_id"] == "None")
+        output_stream = next(s for s in self.doc_010["streams"]
+                             if s["sink_unit_id"] == "None")
+        self.assertEqual(input_stream["roles"],
+                         ["input", "purchased_raw_material", "feedstock"])
+        self.assertEqual(output_stream["roles"], ["output", "product"])
+
     def test_pre_0_0_10_versions_omit_roles(self):
         # roles is emitted only from 0.0.10; older exporters must stay
         # byte-stable and therefore not emit it.
