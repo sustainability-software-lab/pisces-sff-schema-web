@@ -1,6 +1,6 @@
 {
     "metadata": {
-        "sff_version": "0.0.9",
+        "sff_version": "0.0.10",
         "TEA_currency": "USD",
         "TEA_year": 2018,
         "process_simulator": {
@@ -64,7 +64,7 @@
                 "python_version": "3.9.25",
                 "platform": "Windows-10-10.0.26200-SP0",
                 "env_key": "a996d9af0728c87797660ff093b1b4f795f6924876370c6a482e552839f0f894",
-                "exported_at": "2026-08-13T01:37:56Z",
+                "exported_at": "2026-08-13T02:47:29Z",
                 "package_versions": {
                     "biosteam": "2.46.1",
                     "biorefineries": "2.34.10",
@@ -2798,7 +2798,12 @@
                     }
                 },
                 "total_volumetric_flow": 33.301402054009344
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material",
+                "feedstock"
+            ]
         },
         {
             "id": "s1",
@@ -2855,7 +2860,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.301402054009344
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s2",
@@ -2912,7 +2920,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.301402054009344
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s3",
@@ -2969,7 +2980,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.201497847847314
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s4",
@@ -3026,7 +3040,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.09990420616202718
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "s5",
@@ -3083,7 +3100,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.201497847847314
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s6",
@@ -3140,7 +3160,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.201497847847314
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s7",
@@ -3197,7 +3220,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.201497847847314
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s8",
@@ -3254,7 +3280,10 @@
                     }
                 },
                 "total_volumetric_flow": 33.201497847847314
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "sulfuric_acid",
@@ -3281,7 +3310,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.021537424963703162
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s27",
@@ -3308,7 +3341,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.021537424963703162
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s28",
@@ -3335,7 +3371,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.021537424963703162
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "ammonia",
@@ -3362,7 +3401,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.13075077921078435
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s11",
@@ -3389,7 +3432,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.13075077921078435
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s12",
@@ -3416,7 +3462,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.13075077921078435
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "yeast",
@@ -3448,7 +3497,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.012011709758980187
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s34",
@@ -3480,7 +3533,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.012011709758980187
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s35",
@@ -3512,7 +3568,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.012011709758980187
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "lime",
@@ -3539,7 +3598,11 @@
                     }
                 },
                 "total_volumetric_flow": 4.730249999999999e-05
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s13",
@@ -3566,7 +3629,10 @@
                     }
                 },
                 "total_volumetric_flow": 4.730249999999999e-05
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "gluco_amylase",
@@ -3598,7 +3664,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.04825439641158931
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s25",
@@ -3630,7 +3700,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.04825439641158931
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s26",
@@ -3662,7 +3735,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.04825439641158931
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "alpha_amylase",
@@ -3694,7 +3770,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.032409168243188
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s9",
@@ -3726,7 +3806,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.032409168243188
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s10",
@@ -3758,7 +3841,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.032409168243188
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "recycled_process_water",
@@ -3785,7 +3871,10 @@
                     }
                 },
                 "total_volumetric_flow": 87.38271475007711
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "backwater",
@@ -3847,7 +3936,10 @@
                     }
                 },
                 "total_volumetric_flow": 17.44426431213511
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s14",
@@ -3929,7 +4021,10 @@
                     }
                 },
                 "total_volumetric_flow": 137.97137727430163
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s15",
@@ -4011,7 +4106,10 @@
                     }
                 },
                 "total_volumetric_flow": 137.93463182713415
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s20",
@@ -4093,7 +4191,10 @@
                     }
                 },
                 "total_volumetric_flow": 158.03179593573213
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s16",
@@ -4175,7 +4276,10 @@
                     }
                 },
                 "total_volumetric_flow": 155.50607846023706
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s17",
@@ -4257,7 +4361,10 @@
                     }
                 },
                 "total_volumetric_flow": 139.61225312486653
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "steam",
@@ -4284,7 +4391,11 @@
                     }
                 },
                 "total_volumetric_flow": 91.21598399792812
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s18",
@@ -4366,7 +4477,10 @@
                     }
                 },
                 "total_volumetric_flow": 158.03179593573213
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s19",
@@ -4448,7 +4562,10 @@
                     }
                 },
                 "total_volumetric_flow": 158.03179593573213
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s21",
@@ -4530,7 +4647,10 @@
                     }
                 },
                 "total_volumetric_flow": 142.4983410474408
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s22",
@@ -4612,7 +4732,10 @@
                     }
                 },
                 "total_volumetric_flow": 121.18933991006945
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s38",
@@ -4684,7 +4807,10 @@
                     }
                 },
                 "total_volumetric_flow": 140.87168550979322
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s23",
@@ -4766,7 +4892,10 @@
                     }
                 },
                 "total_volumetric_flow": 121.17987656152519
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s24",
@@ -4838,7 +4967,10 @@
                     }
                 },
                 "total_volumetric_flow": 140.88440184592451
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s29",
@@ -4920,7 +5052,10 @@
                     }
                 },
                 "total_volumetric_flow": 121.2878241927816
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s30",
@@ -5002,7 +5137,10 @@
                     }
                 },
                 "total_volumetric_flow": 121.2878241927816
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s44",
@@ -5074,7 +5212,10 @@
                     }
                 },
                 "total_volumetric_flow": 136.85306243471044
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s31",
@@ -5156,7 +5297,10 @@
                     }
                 },
                 "total_volumetric_flow": 118.33469856519145
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s32",
@@ -5228,7 +5372,10 @@
                     }
                 },
                 "total_volumetric_flow": 140.87168550979322
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s33",
@@ -5310,7 +5457,10 @@
                     }
                 },
                 "total_volumetric_flow": 118.15326732771858
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "CO2",
@@ -5347,7 +5497,10 @@
                     }
                 },
                 "total_volumetric_flow": 8656.834816589328
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s36",
@@ -5419,7 +5572,10 @@
                     }
                 },
                 "total_volumetric_flow": 136.85306243471044
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s37",
@@ -5491,7 +5647,10 @@
                     }
                 },
                 "total_volumetric_flow": 136.85306243471044
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s39",
@@ -5563,7 +5722,10 @@
                     }
                 },
                 "total_volumetric_flow": 140.88440184592451
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s40",
@@ -5635,7 +5797,10 @@
                     }
                 },
                 "total_volumetric_flow": 140.88440184592451
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s46",
@@ -5707,7 +5872,10 @@
                     }
                 },
                 "total_volumetric_flow": 140.86563288734285
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s48",
@@ -5779,7 +5947,10 @@
                     }
                 },
                 "total_volumetric_flow": 106.09097556501429
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s49",
@@ -5851,7 +6022,10 @@
                     }
                 },
                 "total_volumetric_flow": 141.94587160284325
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "stillage",
@@ -5923,7 +6097,10 @@
                     }
                 },
                 "total_volumetric_flow": 105.19370599934459
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s45",
@@ -5955,7 +6132,10 @@
                     }
                 },
                 "total_volumetric_flow": 34250.562181693596
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s47",
@@ -6027,7 +6207,10 @@
                     }
                 },
                 "total_volumetric_flow": 106.10297877144284
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s62",
@@ -6099,7 +6282,10 @@
                     }
                 },
                 "total_volumetric_flow": 105.19370599934459
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s63",
@@ -6171,7 +6357,10 @@
                     }
                 },
                 "total_volumetric_flow": 105.19370599934459
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s64",
@@ -6233,7 +6422,10 @@
                     }
                 },
                 "total_volumetric_flow": 83.86665534680343
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s65",
@@ -6305,7 +6497,10 @@
                     }
                 },
                 "total_volumetric_flow": 21.327050652541164
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s67",
@@ -6367,7 +6562,10 @@
                     }
                 },
                 "total_volumetric_flow": 66.42239103466831
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s68",
@@ -6429,7 +6627,10 @@
                     }
                 },
                 "total_volumetric_flow": 66.42239103466831
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s69",
@@ -6491,7 +6692,10 @@
                     }
                 },
                 "total_volumetric_flow": 66.42239103466831
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s70",
@@ -6553,7 +6757,10 @@
                     }
                 },
                 "total_volumetric_flow": 9.469992566538869
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s71",
@@ -6585,7 +6792,10 @@
                     }
                 },
                 "total_volumetric_flow": 56.55388168606677
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "crude_oil",
@@ -6612,7 +6822,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.7642542445312499
-            }
+            },
+            "roles": [
+                "output",
+                "product"
+            ]
         },
         {
             "id": "s72",
@@ -6674,7 +6888,10 @@
                     }
                 },
                 "total_volumetric_flow": 8.705738322007619
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s66",
@@ -6746,7 +6963,10 @@
                     }
                 },
                 "total_volumetric_flow": 21.327050652541164
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s74",
@@ -6818,7 +7038,10 @@
                     }
                 },
                 "total_volumetric_flow": 30.020212278566902
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "dryer_air",
@@ -6850,7 +7073,10 @@
                     }
                 },
                 "total_volumetric_flow": 2700.0651603786396
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "natural_gas",
@@ -6877,7 +7103,10 @@
                     }
                 },
                 "total_volumetric_flow": 1695.5677125314082
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "s75",
@@ -6944,7 +7173,10 @@
                     }
                 },
                 "total_volumetric_flow": 8.517170095109854
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s76",
@@ -6986,7 +7218,10 @@
                     }
                 },
                 "total_volumetric_flow": 5779.37137403089
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s77",
@@ -7018,7 +7253,10 @@
                     }
                 },
                 "total_volumetric_flow": 6319.081582730465
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "DDGS",
@@ -7085,7 +7323,11 @@
                     }
                 },
                 "total_volumetric_flow": 8.517170095109854
-            }
+            },
+            "roles": [
+                "output",
+                "product"
+            ]
         },
         {
             "id": "oxidizer_air",
@@ -7117,7 +7359,10 @@
                     }
                 },
                 "total_volumetric_flow": 939.8780958202289
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "s78",
@@ -7144,7 +7389,10 @@
                     }
                 },
                 "total_volumetric_flow": 98.54415954096349
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "s79",
@@ -7186,7 +7434,10 @@
                     }
                 },
                 "total_volumetric_flow": 64158.762402858134
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "s54",
@@ -7218,7 +7469,10 @@
                     }
                 },
                 "total_volumetric_flow": 4659.9012359316885
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s50",
@@ -7250,7 +7504,10 @@
                     }
                 },
                 "total_volumetric_flow": 38950.636355538205
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s51",
@@ -7282,7 +7539,10 @@
                     }
                 },
                 "total_volumetric_flow": 13519.535085491263
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s52",
@@ -7314,7 +7574,10 @@
                     }
                 },
                 "total_volumetric_flow": 15.604826140800562
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s53",
@@ -7346,7 +7609,10 @@
                     }
                 },
                 "total_volumetric_flow": 15059.210210321253
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s55",
@@ -7378,7 +7644,10 @@
                     }
                 },
                 "total_volumetric_flow": 10399.308974389562
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s56",
@@ -7410,7 +7679,10 @@
                     }
                 },
                 "total_volumetric_flow": 20.185048994569808
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s57",
@@ -7442,7 +7714,10 @@
                     }
                 },
                 "total_volumetric_flow": 20.185048994569808
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s58",
@@ -7474,7 +7749,10 @@
                     }
                 },
                 "total_volumetric_flow": 20.185048994569808
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "denaturant",
@@ -7501,7 +7779,11 @@
                     }
                 },
                 "total_volumetric_flow": 0.9403041221215739
-            }
+            },
+            "roles": [
+                "input",
+                "purchased_raw_material"
+            ]
         },
         {
             "id": "s59",
@@ -7528,7 +7810,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.9403041221215739
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s60",
@@ -7555,7 +7840,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.9403041221215739
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s61",
@@ -7592,7 +7880,10 @@
                     }
                 },
                 "total_volumetric_flow": 21.13598775684553
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "ethanol",
@@ -7629,7 +7920,11 @@
                     }
                 },
                 "total_volumetric_flow": 21.13598775684553
-            }
+            },
+            "roles": [
+                "output",
+                "product"
+            ]
         },
         {
             "id": "recycle_process_water",
@@ -7661,7 +7956,10 @@
                     }
                 },
                 "total_volumetric_flow": 15.604826140800562
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "scrubber_water",
@@ -7688,7 +7986,10 @@
                     }
                 },
                 "total_volumetric_flow": 18.306499697982737
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "s41",
@@ -7715,7 +8016,10 @@
                     }
                 },
                 "total_volumetric_flow": 8228.811725721642
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "s42",
@@ -7747,7 +8051,10 @@
                     }
                 },
                 "total_volumetric_flow": 18.875460791666573
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s43",
@@ -7779,7 +8086,10 @@
                     }
                 },
                 "total_volumetric_flow": 18.875460791666573
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "s73",
@@ -7811,7 +8121,10 @@
                     }
                 },
                 "total_volumetric_flow": 90.86518669710664
-            }
+            },
+            "roles": [
+                "internal"
+            ]
         },
         {
             "id": "",
@@ -7832,7 +8145,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.0
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "s80",
@@ -7853,7 +8169,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.0
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "makeup_water",
@@ -7874,7 +8193,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.0
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "",
@@ -7895,7 +8217,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.0
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "",
@@ -7916,7 +8241,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.0
-            }
+            },
+            "roles": [
+                "input"
+            ]
         },
         {
             "id": "process_water",
@@ -7937,7 +8265,10 @@
                     }
                 },
                 "total_volumetric_flow": 0.0
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "wastewater",
@@ -7964,7 +8295,10 @@
                     }
                 },
                 "total_volumetric_flow": 87.38271475007711
-            }
+            },
+            "roles": [
+                "output"
+            ]
         },
         {
             "id": "",
@@ -7991,7 +8325,10 @@
                     }
                 },
                 "total_volumetric_flow": 1.2967488494169381
-            }
+            },
+            "roles": [
+                "output"
+            ]
         }
     ],
     "chemicals": [
