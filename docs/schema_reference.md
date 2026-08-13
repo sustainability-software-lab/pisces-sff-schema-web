@@ -85,6 +85,7 @@ The `streams` array maps out the connectivity of the flowsheet, defining how mat
 - **source_unit_id**: The ID of the originating unit operation. *(Required)*
 - **sink_unit_id**: The ID of the receiving unit operation. *(Required)*
 - **stream_description**: A qualitative description (e.g., "Make-up solvent").
+- **roles**: An optional array (added in v0.0.10) naming the roles this stream plays. Every non-isolated stream carries exactly one base topology role — `input` (a sink but no source), `output` (a source but no sink), or `internal` (both) — and may additionally carry designation roles: `purchased_raw_material` (a priced input), `feedstock` (a feedstock input; can co-occur with `purchased_raw_material`), and `product` (a product output). Values are unique; the enum is `["input", "output", "purchased_raw_material", "feedstock", "product", "internal"]`. Omitted by exporters targeting pre-0.0.10 schemas.
 - **price**: A bare number giving the cost per quantity of the stream material. Its units come from `quantity_units_global` under `price` (BioSTEAM-native default `USD/kg`), not an inline unit string.
 - **stream_properties**: A detailed block of stream state. `total_molar_flow`, `temperature`, `pressure`, and `phases` are required; the remaining scalars are optional. Each scalar below is a bare number whose units come from `quantity_units_global` (BioSTEAM-native defaults noted); `phases` is an object (see below):
     - **total_molar_flow** (`kmol/hr`)

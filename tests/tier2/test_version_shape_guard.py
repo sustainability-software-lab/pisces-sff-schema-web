@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 # Tier 2: exporter version-dispatch guard. Exports one small REAL System at
-# 0.0.6, 0.0.7, 0.0.8, and 0.0.9 and asserts the scalar-shape, results-key, and
-# required-metadata differences the schema versions require. This is about
+# 0.0.6, 0.0.7, 0.0.8, 0.0.9, and 0.0.10 and asserts the scalar-shape,
+# results-key, required-metadata, and stream-roles differences the schema
+# versions require. This is about
 # exporter version dispatch, not the corn model, so it needs no whole-model
 # simulation -- which is why it lives in Tier 2 rather than Tier 3.
 #
@@ -66,6 +67,11 @@ class TestVersionShapeGuard(unittest.TestCase):
         _export.export_biosteam_flowsheet(
             system, str(cls.path_009), sff_version="0.0.9", tea=tea)
         cls.doc_009 = json.loads(cls.path_009.read_text(encoding="utf-8"))
+
+        cls.path_010 = tmp / "small_010.json"
+        _export.export_biosteam_flowsheet(
+            system, str(cls.path_010), sff_version="0.0.10", tea=tea)
+        cls.doc_010 = json.loads(cls.path_010.read_text(encoding="utf-8"))
 
     @classmethod
     def tearDownClass(cls):
@@ -144,6 +150,37 @@ class TestVersionShapeGuard(unittest.TestCase):
         # byte-stable and therefore not emit it.
         self.assertNotIn("TEA_currency", self.doc_007["metadata"])
         self.assertNotIn("TEA_currency", self.doc_006["metadata"])
+
+    def test_0_0_10_validates_against_committed_schema(self):
+        is_valid, errors = self.validate(str(self.path_010), str(SCHEMA_PATH))
+        self.assertTrue(is_valid, f"validation errors: {errors[:5]}")
+        self.assertEqual(self.doc_010["metadata"]["sff_version"], "0.0.10")
+
+    def test_0_0_10_emits_roles_matching_topology(self):
+        for stream in self.doc_010["streams"]:
+            with self.subTest(stream=stream["id"]):
+                roles = stream["roles"]
+                self.assertIsInstance(roles, list)
+                self.assertTrue(roles)
+                # Exactly one base topology role, and it agrees with source/sink.
+                base = [r for r in roles
+                        if r in ("input", "output", "internal")]
+                self.assertEqual(len(base), 1)
+                has_source = stream["source_unit_id"] != "None"
+                has_sink = stream["sink_unit_id"] != "None"
+                if has_source and has_sink:
+                    self.assertEqual(base[0], "internal")
+                elif has_sink:
+                    self.assertEqual(base[0], "input")
+                else:
+                    self.assertEqual(base[0], "output")
+
+    def test_pre_0_0_10_versions_omit_roles(self):
+        # roles is emitted only from 0.0.10; older exporters must stay
+        # byte-stable and therefore not emit it.
+        for doc in (self.doc_009, self.doc_008, self.doc_007, self.doc_006):
+            for stream in doc["streams"]:
+                self.assertNotIn("roles", stream)
 
 
 if __name__ == "__main__":

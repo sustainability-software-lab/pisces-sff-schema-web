@@ -133,6 +133,11 @@ _TEA_CURRENCY_SINCE = (0, 0, 8)
 #: byte-stable.
 _PHASES_SINCE = (0, 0, 9)
 
+#: First schema version that emits a stream's `roles` array (base topology role
+#: input | output | internal, plus designation roles purchased_raw_material,
+#: feedstock, product). Gated in _build_sff_dict so 0.0.5-0.0.9 stay byte-stable.
+_ROLES_SINCE = (0, 0, 10)
+
 # Every versioned exporter assembles the same core document; only the
 # version-specific additions differ. Keeping the assembly here means adding a
 # schema version costs one thin function rather than a copy of ~170 lines that
@@ -303,6 +308,10 @@ def _build_sff_dict(sys, tea=None,
                     f"{rs.ID!r}; omitting it: {e}",
                     stacklevel=2,
                 )
+        # 0.0.10+ declares each stream's roles (base topology role plus any
+        # designation roles). Gated so pre-0.0.10 stream shape stays byte-stable.
+        if version_tuple(sff_version) >= _ROLES_SINCE:
+            stream["roles"] = get_stream_roles(rs, all_sys_feeds, all_sys_products)
         streams.append(stream)
     
     ## ------ Chemicals ------ ##
@@ -594,6 +603,55 @@ def export_biosteam_flowsheet_sff_0_0_9(sys, filepath, tea=None,
     _write_sff_json(flowsheet_to_export, filepath)
 
 
+#%% Export function for SFF schema v0.0.10
+def export_biosteam_flowsheet_sff_0_0_10(sys, filepath, tea=None,
+                                         stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                         composition_units="both", # "mol%", "mass%", or "both"
+                                         microorganisms=None, # optional list of microbial hosts
+                                         reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                         sff_version='0.0.10', # must match this function's name suffix
+                                         ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.10.
+
+    Identical to the v0.0.9 exporter except that the shared builder additionally
+    emits an optional ``roles`` array on every non-isolated stream: exactly one
+    base topology role (``input`` | ``output`` | ``internal``) plus any
+    designation roles (``purchased_raw_material`` on priced inputs, ``feedstock``
+    on feedstock inputs, ``product`` on product outputs). See
+    :func:`get_stream_roles`. The property is optional, so 0.0.9-shaped files
+    still validate against this schema.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
 #%% Helper functions
 
 def is_feedstock(stream, all_sys_feeds):
@@ -620,6 +678,58 @@ def is_product(stream, all_sys_products):
     if (not stream.cost>0.0):
         return False
     return True
+
+
+def get_stream_roles(stream, all_sys_feeds, all_sys_products):
+    """Return the roles a stream plays (see design doc section 1).
+
+    Exactly one base topology role is derived from the real source/sink objects
+    (Python ``None``), not the ``"None"`` sentinel string written to
+    ``source_unit_id`` / ``sink_unit_id``:
+
+    - ``internal`` -- has both a source and a sink,
+    - ``input``    -- has a sink but no source,
+    - ``output``   -- has a source but no sink.
+
+    Inputs additionally carry ``purchased_raw_material`` when priced
+    (``price > 0``) and ``feedstock`` when ``is_feedstock`` selects them; the two
+    can co-occur. Outputs additionally carry ``product`` when ``is_product``
+    selects them. Order is deterministic (base role first, then
+    ``purchased_raw_material``, ``feedstock``, ``product``) so exporter output
+    stays byte-stable.
+
+    Parameters
+    ----------
+    stream : thermosteam.Stream
+        The stream to classify.
+    all_sys_feeds : list
+        ``sys.feeds``; passed through to :func:`is_feedstock`.
+    all_sys_products : list
+        ``sys.products``; passed through to :func:`is_product`.
+
+    Returns
+    -------
+    list of str
+        One base role followed by any designation roles, from the enum
+        ``["input", "output", "purchased_raw_material", "feedstock", "product",
+        "internal"]``.
+    """
+    roles = []
+    has_source = stream.source is not None
+    has_sink = stream.sink is not None
+    if has_source and has_sink:
+        roles.append("internal")
+    elif has_sink:                       # input: has sink, no source
+        roles.append("input")
+        if stream.price and stream.price > 0:
+            roles.append("purchased_raw_material")
+        if is_feedstock(stream, all_sys_feeds):
+            roles.append("feedstock")
+    elif has_source:                     # output: has source, no sink
+        roles.append("output")
+        if is_product(stream, all_sys_products):
+            roles.append("product")
+    return roles
 
 
 def format_name(name):

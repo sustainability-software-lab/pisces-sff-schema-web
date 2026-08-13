@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Standard Flowsheet Format (SFF)",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "A standardized, machine-readable representation of a process flowsheet designed for interoperability and data exchange. It represents the process as a directed graph with rich data attached to both nodes (units) and edges (streams).",
   "type": "object",
   "definitions": {
@@ -448,6 +448,16 @@
           "price": {
             "type": "number",
             "description": "Price per unit mass of the stream material. Quantity units are declared in the top-level 'quantity_units_global' under 'price' (default 'USD/kg')."
+          },
+          "roles": {
+            "type": "array",
+            "description": "The roles this stream plays in the flowsheet. A stream always carries exactly one base topology role (input | output | internal) and may additionally carry designation roles (purchased_raw_material, feedstock, product). Emitted from schema v0.0.10 on; optional, so files written against earlier versions remain valid.",
+            "items": {
+              "type": "string",
+              "enum": ["input", "output", "purchased_raw_material", "feedstock", "product", "internal"]
+            },
+            "uniqueItems": true,
+            "minItems": 1
           },
           "stream_properties": {
             "description": "Structured object specifying the properties of the stream.",
