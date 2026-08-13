@@ -1,2 +1,23 @@
+# Claude Code local working files #
+###################################
+CLAUDE.md
+.claude
+.claude/
+docs/superpowers
+.superpowers
+
+# Python
 __pycache__/
 *.py[cod]
+.venv*/
+*.egg-info/
+build/
+dist/
+
+# Numba caches
+*.nbc
+*.nbi
+
+# MkDocs build output
+site/
+public/

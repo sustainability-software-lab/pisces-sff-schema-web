@@ -10,6 +10,7 @@ import json
 import inspect
 import sys
 import re
+import warnings
 import numpy as np
 
 from collections import deque
@@ -24,9 +25,19 @@ from biosteam import PowerUtility, System
 
 import biosteam as bst
 
-from ._version import CURRENT_SFF_VERSION
+from ._quantity_units import (
+    QUANTITY_UNITS_GLOBAL,
+    scalar,
+    uses_inline_scalar_style,
+    version_tuple,
+    quantity_units_for_design_results,
+)
+from .exceptions import (
+    FlowsheetWriteError,
+    DesignInputSpecError,
+)
 
-__all__ = ('export_biosteam_flowsheet',)
+__all__ = ('export_biosteam_flowsheet', 'available_sff_versions')
 
 
 def _json_default(value):
@@ -67,16 +78,139 @@ def _finite_mapping(mapping):
 
 #%% Entry-point export function
 
-def export_biosteam_flowsheet(sys, filepath, sff_version, **kwargs):
-    sff_version_formatted = sff_version.replace('.', '_')
-    exec(f'export_biosteam_flowsheet_sff_{sff_version_formatted}(sys, filepath, **kwargs)')
+# Versioned exporters are named `<_EXPORTER_PREFIX><major>_<minor>_<patch>`, and
+# that name is the only registration they need: `export_biosteam_flowsheet`
+# resolves the requested version by looking up the matching name in this module.
+# Adding support for a new schema version therefore means adding one function
+# with the right name -- nothing else in this section changes.
+_EXPORTER_PREFIX = 'export_biosteam_flowsheet_sff_'
 
-#%% Export function for SFF schema v0.0.5
-def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
-                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
-                                        composition_units="both", # "mol%", "mass%", or "both"
-                                        microorganisms=None, # optional list of microbial hosts; see metadata section below
-                                        ):
+def export_biosteam_flowsheet(sys, filepath, sff_version, **kwargs):
+    """
+    Export a simulated BioSTEAM system to an SFF JSON file.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    sff_version : str
+        SFF schema version to export against, in semantic versioning notation;
+        e.g., ``'0.0.5'``. This selects the versioned exporter function to use
+        and is recorded as ``metadata.sff_version`` in the exported file.
+    **kwargs
+        Forwarded to the versioned exporter function.
+
+    Raises
+    ------
+    ValueError
+        If no exporter is implemented for `sff_version`.
+    """
+    exporter = get_versioned_exporter(sff_version)
+    return exporter(sys, filepath, sff_version=sff_version, **kwargs)
+
+
+def get_versioned_exporter(sff_version):
+    """
+    Return the exporter function implementing a given SFF schema version.
+
+    Parameters
+    ----------
+    sff_version : str
+        SFF schema version in semantic versioning notation; e.g., ``'0.0.5'``.
+
+    Returns
+    -------
+    function
+        The module-level ``export_biosteam_flowsheet_sff_<major>_<minor>_<patch>``
+        function for that version.
+
+    Raises
+    ------
+    ValueError
+        If no such function exists in this module.
+    """
+    name = _EXPORTER_PREFIX + str(sff_version).replace('.', '_')
+    exporter = globals().get(name)
+    if not isinstance(exporter, FunctionType):
+        available = available_sff_versions()
+        raise ValueError(
+            f'no exporter implemented for SFF version {sff_version!r} '
+            f'(expected a function named {name!r} in pisces_sff._export); '
+            f"available versions: {', '.join(available) if available else 'none'}."
+        )
+    return exporter
+
+
+def available_sff_versions():
+    """
+    Return the SFF schema versions this module can export, oldest first.
+
+    Returns
+    -------
+    list of str
+        Versions in semantic versioning notation; e.g., ``['0.0.5']``. These are
+        read from the names of the versioned exporter functions defined here.
+    """
+    n = len(_EXPORTER_PREFIX)
+    versions = [name[n:].replace('_', '.') for name, obj in globals().items()
+                if name.startswith(_EXPORTER_PREFIX) and isinstance(obj, FunctionType)]
+    return sorted(versions, key=lambda v: [(0, int(i), '') if i.isdigit() else (1, 0, i)
+                                           for i in v.split('.')])
+
+#%% Shared flowsheet assembly
+
+#: First schema version that requires metadata.TEA_currency. Older exporters
+#: omit the field so their historical output stays byte-stable; see the gated
+#: emission in _build_sff_dict below.
+_TEA_CURRENCY_SINCE = (0, 0, 8)
+
+#: First schema version that structures a stream's composition and totals
+#: per-phase (stream_properties.phases keyed by phase symbol) instead of a
+#: single flat composition array. Gated in _build_sff_dict so 0.0.5-0.0.8 stay
+#: byte-stable.
+_PHASES_SINCE = (0, 0, 9)
+
+#: First schema version that emits a stream's `roles` array (base topology role
+#: input | output | internal, plus designation roles purchased_raw_material,
+#: feedstock, product). Gated in _build_sff_dict so 0.0.5-0.0.9 stay byte-stable.
+_ROLES_SINCE = (0, 0, 10)
+
+# Every versioned exporter assembles the same core document; only the
+# version-specific additions differ. Keeping the assembly here means adding a
+# schema version costs one thin function rather than a copy of ~170 lines that
+# would drift from this one. metadata['sff_version'] is assigned from the
+# argument here and nowhere else -- see tests/test_version_sync.py.
+def _build_sff_dict(sys, tea=None,
+                    stoichiometry="dict", # must be one of (None, "vector", "dict")
+                    composition_units="both", # "mol%", "mass%", or "both"
+                    microorganisms=None, # optional list of microbial hosts; see metadata section below
+                    sff_version=None, # recorded as metadata['sff_version']
+                    ):
+    """
+    Assemble the SFF document for a simulated BioSTEAM system.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    sff_version : str
+        Version recorded as ``metadata['sff_version']``.
+
+    Returns
+    -------
+    dict
+        The SFF document, ready to serialize.
+    """
     f = sys.flowsheet
     u, s = sys.units, sys.streams
     all_streams = list(s)
@@ -84,13 +218,24 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     all_sys_products = list(sys.products)
     if tea is None:
         tea = sys.TEA
-    
-    ## ------- Metadata ------- ## 
+    # Pre-0.0.7 emits inline {"value","units"} scalars and the legacy field
+    # names; 0.0.7+ emits bare numbers whose units live in quantity_units_global.
+    # Older exporters must stay byte-stable so historical exports reproduce, so
+    # every version-dependent shape below is gated on this one flag.
+    inline = uses_inline_scalar_style(sff_version)
+    results_key = "units_for_utility_results" if inline else "quantity_units_for_utility_results"
+
+    ## ------- Metadata ------- ##
     metadata = {}
-    # Stamp the real emitted version. This entry point was hardcoding '0.0.3'
-    # while producing v0.0.5 output; sourcing the single CURRENT_SFF_VERSION
-    # constant keeps the stamp honest and updatable in one place.
-    metadata['sff_version'] = CURRENT_SFF_VERSION
+    # Reported from the requested version rather than a hardcoded literal: this
+    # previously read '0.0.3' regardless of the version exported against, so
+    # every export misreported the schema it was written for.
+    metadata['sff_version'] = sff_version
+    # TEA_currency became a required metadata field in v0.0.8; older exporters
+    # omit it to keep their historical output byte-stable. BioSTEAM reports all
+    # cost results in USD.
+    if version_tuple(sff_version) >= _TEA_CURRENCY_SINCE:
+        metadata['TEA_currency'] = 'USD'
     metadata['TEA_year'] = tea.duration[0]
     metadata['process_simulator'] = {'name': 'BioSTEAM',
                                      'version': bst.__version__}
@@ -165,6 +310,8 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
                 "utility_consumption_results": u_cons,
                 "utility_production_results": u_prod,
                 }
+        if not inline:
+            unit["quantity_units_for_design_results"] = quantity_units_for_design_results(ru)
         units.append(unit)
         
     ## ------ Streams ------ ##
@@ -172,29 +319,43 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     for raw_stream in all_streams:
         rs = raw_stream
         if not (rs.source or rs.sink): continue # skip isolated streams
+        stream_properties = {
+            "total_mass_flow": scalar(rs.F_mass, "kg/h", inline),
+            "total_molar_flow": scalar(rs.F_mol, "kmol/h", inline),
+            "temperature": scalar(rs.T, "K", inline),
+            "pressure": scalar(rs.P, "Pa", inline),
+        }
+        # 0.0.9+ makes each phase first-class (its own totals + composition);
+        # earlier versions keep the single flat composition array. Gated so the
+        # older stream shape stays byte-identical.
+        if version_tuple(sff_version) >= _PHASES_SINCE:
+            stream_properties["phases"] = get_phase_properties(rs, inline)
+        else:
+            stream_properties["composition"] = get_composition(rs)
         stream = {"id": rs.ID,
                   "source_unit_id": rs.source.ID if rs.source is not None else "None",
                   "sink_unit_id": rs.sink.ID if rs.sink is not None else "None",
-                  "price": {"value": rs.price, "units": "$/kg"},
-                  "stream_properties": {
-                      "total_mass_flow": {"value": rs.F_mass, "units": "kg/h"},
-                      "total_molar_flow": {"value": rs.F_mol, "units": "kmol/h"},
-                      "temperature": {"value": rs.T, "units": "K"},
-                      "pressure": {"value": rs.P, "units": "Pa"},
-                      "composition": get_composition(rs),
-                      }
+                  "price": scalar(rs.price, "$/kg", inline),
+                  "stream_properties": stream_properties,
                   }
         try:
-            stream["stream_properties"]["total_volumetric_flow"] = {"value": rs.F_vol, "units": "m3/h"}
+            stream["stream_properties"]["total_volumetric_flow"] = scalar(rs.F_vol, "m3/h", inline)
         except Exception as e:
-            # Volumetric flow is optional: some streams legitimately lack a liquid
-            # molar volume method, so that one known case is skipped. Any other
-            # failure is a real bug and re-raised (this previously dropped into an
-            # interactive debugger, which hangs an unattended export).
-            if 'liquid molar volume method' in str(e).lower():
-                pass
-            else:
-                raise
+            # total_volumetric_flow is optional in the schema. A missing liquid
+            # molar volume method is a common, expected reason it cannot be
+            # computed; other failures are unexpected but still non-fatal. Either
+            # way, omit it for this stream and continue rather than aborting the
+            # whole export -- but warn on the unexpected case so it is not lost.
+            if 'liquid molar volume method' not in str(e).lower():
+                warnings.warn(
+                    f"could not compute total_volumetric_flow for stream "
+                    f"{rs.ID!r}; omitting it: {e}",
+                    stacklevel=2,
+                )
+        # 0.0.10+ declares each stream's roles (base topology role plus any
+        # designation roles). Gated so pre-0.0.10 stream shape stays byte-stable.
+        if version_tuple(sff_version) >= _ROLES_SINCE:
+            stream["roles"] = get_stream_roles(rs, all_sys_feeds, all_sys_products)
         streams.append(stream)
     
     ## ------ Chemicals ------ ##
@@ -222,59 +383,324 @@ def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
     for hu_agent in all_hu_agents:
         hu = {
               "id": hu_agent.ID,
-              "temperature": {"value": hu_agent.T, "units": "K"},
-              "pressure": {"value": hu_agent.P, "units": "Pa"},
-              "regeneration_price": {"value": hu_agent.regeneration_price, "units": "$/kmol"},
-              "heat_transfer_price": {"value": hu_agent.heat_transfer_price, "units": "$/kJ"},
+              "temperature": scalar(hu_agent.T, "K", inline),
+              "pressure": scalar(hu_agent.P, "Pa", inline),
+              "regeneration_price": scalar(hu_agent.regeneration_price, "$/kmol", inline),
+              "heat_transfer_price": scalar(hu_agent.heat_transfer_price, "$/kJ", inline),
               "heat_transfer_efficiency": hu_agent.heat_transfer_efficiency if hu_agent.heat_transfer_efficiency is not None else 1.0,
               "composition": get_composition(hu_agent),
-              "units_for_utility_results": "kJ/h",
               }
+        hu[results_key] = "kJ/h" if inline else "kJ/hr"
         heat_utilities.append(hu)
-        
+
     power_utilities = []
     for pu_agent in all_pu_agents:
-        pu = {"id": "Marginal grid electricity",
-              "price": {"value": pu_agent.price, "units": "$/kWh"},
-              "units_for_utility_results": "kW",
-              }
+        pu = {"id": "Marginal grid electricity"}
+        if inline:
+            pu["price"] = {"value": pu_agent.price, "units": "$/kWh"}
+        else:
+            pu["electrical_energy_price"] = pu_agent.price
+        pu[results_key] = "kW"
         power_utilities.append(pu)
-    
+
     other_utilities = []
     for ou_agent in all_ou_agents:
         ou = {
               "id": ou_agent.ID,
-              "temperature": {"value": ou_agent.T, "units": "K"},
-              "pressure": {"value": ou_agent.P, "units": "Pa"},
-              "price": {"value": ou_agent.price or ng_price, "units": "$/kg"},
-              "units_for_utility_results": "kg/h",
-              "composition": get_composition(ou_agent),
+              "temperature": scalar(ou_agent.T, "K", inline),
+              "pressure": scalar(ou_agent.P, "Pa", inline),
+              "price": scalar(ou_agent.price or ng_price, "$/kg", inline),
               }
+        ou[results_key] = "kg/h" if inline else "kg/hr"
+        ou["composition"] = get_composition(ou_agent)
         other_utilities.append(ou)
-    
-    # Export
-    flowsheet_to_export = {"metadata": metadata,
-                           "units": units,
-                           "streams": streams,
-                           "chemicals": chemicals,
-                           "utilities": {"heat_utilities": heat_utilities,
-                                          "power_utilities": power_utilities,
-                                          "other_utilities": other_utilities},
-                           }
-    # Write the document, or fail loudly. Previously a bare `except` swallowed
-    # every write error into an interactive debugger, which silently stalls an
-    # unattended export. `default=_json_default` converts BioSTEAM's NumPy/deque
-    # values; `allow_nan=False` makes json.dump raise on any NaN/inf that slipped
-    # past _finite_mapping, so we never emit non-standard JSON tokens.
-    with open(filepath, "w") as json_file:
-        json.dump(
-            flowsheet_to_export,
-            json_file,
-            indent=4,
-            default=_json_default,
-            allow_nan=False,
-        )
-        
+    document = {"metadata": metadata,
+                "units": units,
+                "streams": streams,
+                "chemicals": chemicals,
+                "utilities": {"heat_utilities": heat_utilities,
+                              "power_utilities": power_utilities,
+                              "other_utilities": other_utilities},
+                }
+    if not inline:
+        document["quantity_units_global"] = QUANTITY_UNITS_GLOBAL
+    return document
+
+
+def _write_sff_json(flowsheet_to_export, filepath):
+    """
+    Serialize an assembled SFF document to `filepath` as indented JSON.
+
+    Raises
+    ------
+    FlowsheetWriteError
+        If serialization or the file write fails.
+    """
+    try:
+        with open(filepath, "w") as json_file:
+            json.dump(
+                flowsheet_to_export,
+                json_file,
+                indent=4,
+                default=_json_default,
+                allow_nan=False,
+            )
+    except Exception as e:
+        raise FlowsheetWriteError(
+            f"could not write SFF document to {filepath!r}: {e}"
+        ) from e
+
+
+#%% Export function for SFF schema v0.0.5
+def export_biosteam_flowsheet_sff_0_0_5(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        sff_version='0.0.5', # must match this function's name suffix
+                                        ):
+    """Export a simulated BioSTEAM system against SFF schema v0.0.5."""
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.6
+def export_biosteam_flowsheet_sff_0_0_6(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.6', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.6.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``: the environment
+        specification, load script, pinned packages, and resolved runtime facts.
+        Built by :func:`pisces_sff._runner.build_reproducibility`. Omitted
+        entirely when falsy, so hand exports still validate -- the schema marks
+        the block optional.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.7
+def export_biosteam_flowsheet_sff_0_0_7(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.7', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.7.
+
+    Identical to the v0.0.6 exporter except for the quantity-unit shape the
+    shared builder emits at this version: scalars and prices are bare numbers
+    whose units are declared once in the top-level ``quantity_units_global``
+    registry, each unit operation carries ``quantity_units_for_design_results``,
+    the power-utility price is ``electrical_energy_price``, and the utility
+    results-unit key is ``quantity_units_for_utility_results``.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.8
+def export_biosteam_flowsheet_sff_0_0_8(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.8', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.8.
+
+    Identical to the v0.0.7 exporter except that ``metadata.TEA_currency`` is
+    now a required field: the shared builder emits it as ``"USD"`` (the currency
+    BioSTEAM reports all cost results in) at this version and above.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.9
+def export_biosteam_flowsheet_sff_0_0_9(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.9', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.9.
+
+    Identical to the v0.0.8 exporter except for the stream structure the shared
+    builder emits at this version: each stream's ``stream_properties.phases`` is
+    an object keyed by phase symbol, and every phase carries its own total
+    molar/mass/volumetric flows and its own composition (see
+    :func:`get_phase_properties`). The whole-stream totals, temperature, and
+    pressure are retained; the flat ``composition`` array is dropped.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
+#%% Export function for SFF schema v0.0.10
+def export_biosteam_flowsheet_sff_0_0_10(sys, filepath, tea=None,
+                                         stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                         composition_units="both", # "mol%", "mass%", or "both"
+                                         microorganisms=None, # optional list of microbial hosts
+                                         reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                         sff_version='0.0.10', # must match this function's name suffix
+                                         ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.10.
+
+    Identical to the v0.0.9 exporter except that the shared builder additionally
+    emits an optional ``roles`` array on every non-isolated stream: exactly one
+    base topology role (``input`` | ``output`` | ``internal``) plus any
+    designation roles (``purchased_raw_material`` on priced inputs, ``feedstock``
+    on feedstock inputs, ``product`` on product outputs). See
+    :func:`get_stream_roles`. The property is optional, so 0.0.9-shaped files
+    still validate against this schema.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
 #%% Helper functions
 
 def is_feedstock(stream, all_sys_feeds):
@@ -301,6 +727,58 @@ def is_product(stream, all_sys_products):
     if (not stream.cost>0.0):
         return False
     return True
+
+
+def get_stream_roles(stream, all_sys_feeds, all_sys_products):
+    """Return the roles a stream plays (see design doc section 1).
+
+    Exactly one base topology role is derived from the real source/sink objects
+    (Python ``None``), not the ``"None"`` sentinel string written to
+    ``source_unit_id`` / ``sink_unit_id``:
+
+    - ``internal`` -- has both a source and a sink,
+    - ``input``    -- has a sink but no source,
+    - ``output``   -- has a source but no sink.
+
+    Inputs additionally carry ``purchased_raw_material`` when priced
+    (``price > 0``) and ``feedstock`` when ``is_feedstock`` selects them; the two
+    can co-occur. Outputs additionally carry ``product`` when ``is_product``
+    selects them. Order is deterministic (base role first, then
+    ``purchased_raw_material``, ``feedstock``, ``product``) so exporter output
+    stays byte-stable.
+
+    Parameters
+    ----------
+    stream : thermosteam.Stream
+        The stream to classify.
+    all_sys_feeds : list
+        ``sys.feeds``; passed through to :func:`is_feedstock`.
+    all_sys_products : list
+        ``sys.products``; passed through to :func:`is_product`.
+
+    Returns
+    -------
+    list of str
+        One base role followed by any designation roles, from the enum
+        ``["input", "output", "purchased_raw_material", "feedstock", "product",
+        "internal"]``.
+    """
+    roles = []
+    has_source = stream.source is not None
+    has_sink = stream.sink is not None
+    if has_source and has_sink:
+        roles.append("internal")
+    elif has_sink:                       # input: has sink, no source
+        roles.append("input")
+        if stream.price and stream.price > 0:
+            roles.append("purchased_raw_material")
+        if is_feedstock(stream, all_sys_feeds):
+            roles.append("feedstock")
+    elif has_source:                     # output: has source, no sink
+        roles.append("output")
+        if is_product(stream, all_sys_products):
+            roles.append("product")
+    return roles
 
 
 def format_name(name):
@@ -437,14 +915,80 @@ def get_composition(stream,
     return comp
 
 
+def get_phase_properties(stream, inline):
+    """
+    Build the per-phase properties block for a stream (SFF v0.0.9+).
+
+    Returns a dict keyed by phase symbol ('l', 'g', 's', ...). Each value carries
+    that phase's own total molar/mass/volumetric flows and its molar and mass
+    composition, with all fractions taken relative to that phase. A phase with
+    zero molar flow contributes no components (matching get_composition's
+    ``sp.imol[c] > 0`` guard), so its ``composition`` is an empty list.
+
+    Parameters
+    ----------
+    stream : thermosteam.Stream
+        A simulated stream.
+    inline : bool
+        Passed through to :func:`scalar`: True emits inline ``{"value","units"}``
+        pairs (pre-0.0.7 shape), False emits bare numbers whose units come from
+        ``quantity_units_global``.
+
+    Returns
+    -------
+    dict
+        ``{phase_symbol: {"total_mass_flow", "total_molar_flow",
+        "total_volumetric_flow"?, "composition"}}``.
+    """
+    s = stream
+    chem_IDs = [chem.ID for chem in list(s.chemicals)]
+    phases = {}
+    for p in s.phases:
+        sp = s[p]
+        phase = {
+            "total_mass_flow": scalar(sp.F_mass, "kg/h", inline),
+            "total_molar_flow": scalar(sp.F_mol, "kmol/h", inline),
+        }
+        try:
+            phase["total_volumetric_flow"] = scalar(sp.F_vol, "m3/h", inline)
+        except Exception as e:
+            # Same optional-field fallback as the whole-stream volumetric flow:
+            # a missing liquid molar volume method is expected; anything else is
+            # unexpected but still non-fatal. Omit the key and warn only on the
+            # unexpected cause.
+            if 'liquid molar volume method' not in str(e).lower():
+                warnings.warn(
+                    f"could not compute total_volumetric_flow for phase {p!r} "
+                    f"of stream {getattr(s, 'ID', s)!r}; omitting it: {e}",
+                    stacklevel=2,
+                )
+        composition = []
+        positive_moles = {c: sp.imol[c] for c in chem_IDs if sp.imol[c] > 0}
+        positive_masses = {c: sp.imass[c] for c in chem_IDs if sp.imass[c] > 0}
+        total_positive_moles = sum(positive_moles.values())
+        total_positive_mass = sum(positive_masses.values())
+        for c in positive_moles:
+            mass_fraction = (
+                positive_masses.get(c, 0.0) / total_positive_mass
+                if total_positive_mass
+                else 0.0
+            )
+            if total_positive_moles:
+                composition.append({
+                    "component_name": c,
+                    "mol_fraction": positive_moles[c] / total_positive_moles,
+                    "mass_fraction": mass_fraction,
+                })
+        phase["composition"] = composition
+        phases[p] = phase
+    return phases
+
+
 def _top_level_reactions(unit):
     """Return each top-level reaction once, in the unit's attribute order.
 
-    Why not the old `{rxn for rxn in ...}` set comprehension: iterating a set of
-    reaction objects yields them in hash (memory-address) order, so the same model
-    exported twice produced reactions in a different order and the JSON diffed for
-    no real reason. Walking `__dict__.values()` instead preserves the deterministic
-    order the attributes were defined in, which is what makes exports repeatable.
+    Walking ``__dict__.values()`` preserves definition order while identity
+    de-duplication prevents nested reactions from being emitted twice.
     """
     rxntypes = (Reaction, ReactionSet)
     # Collect reactions in attribute order, de-duplicating by identity (id) so a
@@ -621,17 +1165,10 @@ def get_design_input_specs(unit):
     for p in param_names:
         if hasattr(unit, p):
             try:
-                # getattr(unit, p) reads the attribute directly. This replaces an
-                # earlier `exec(f'dis[p] = unit.{p}')`: because `p` is always one
-                # of the fixed param_names above, building and running a code
-                # string bought nothing over a plain attribute read, while exec
-                # is slower and executes an interpolated string (an injection
-                # footgun if param_names ever became caller-supplied).
                 dis[p] = getattr(unit, p)
-            except Exception:
-                # These design inputs are all optional and unit-type specific;
-                # reading one can fail (e.g. a property raises for this unit).
-                # Skip the missing spec rather than dropping into an interactive
-                # debugger, which previously froze an unattended export.
-                continue
+            except Exception as e:
+                raise DesignInputSpecError(
+                    f"could not read design input spec {p!r} for unit "
+                    f"{getattr(unit, 'ID', unit)!r}: {e}"
+                ) from e
     return dis

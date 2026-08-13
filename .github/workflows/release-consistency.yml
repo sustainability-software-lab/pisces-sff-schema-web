@@ -24,7 +24,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install schema test dependency
-        run: python -m pip install --disable-pip-version-check jsonschema
+        run: python -m pip install --disable-pip-version-check jsonschema PyYAML
 
       - name: Verify release identifiers
         shell: bash

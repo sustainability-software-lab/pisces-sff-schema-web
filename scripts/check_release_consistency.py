@@ -5,11 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 
-VERSION_RE = re.compile(r'^CURRENT_SFF_VERSION\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
 REPOSITORY = "sustainability-software-lab/pisces-sff-schema-web"
 
 
@@ -20,30 +18,19 @@ def expected_schema_id(version: str) -> str:
     )
 
 
-def read_package_version(root: Path) -> str:
-    source = (root / "pisces_sff/_version.py").read_text(encoding="utf-8")
-    match = VERSION_RE.search(source)
-    if match is None:
-        raise ValueError("pisces_sff/_version.py does not declare CURRENT_SFF_VERSION")
-    return match.group(1)
-
-
 def check_release_consistency(root: Path, tag: str | None = None) -> str:
-    version = read_package_version(root)
     schema_path = root / "pisces_sff/schema/sff_schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-
-    if schema.get("version") != version:
-        raise ValueError(
-            f"schema version {schema.get('version')!r} does not match package version {version!r}"
-        )
+    version = schema.get("version")
+    if not isinstance(version, str) or not version:
+        raise ValueError("schema must declare a non-empty string version")
 
     expected_id = expected_schema_id(version)
     if schema.get("$id") != expected_id:
         raise ValueError(f"schema $id must be {expected_id!r}, got {schema.get('$id')!r}")
 
     if tag is not None and tag != f"v{version}":
-        raise ValueError(f"release tag {tag!r} does not match package version v{version}")
+        raise ValueError(f"release tag {tag!r} does not match schema version v{version}")
 
     return version
 
