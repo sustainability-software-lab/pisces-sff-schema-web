@@ -72,7 +72,12 @@ class TestTeaCurrencyValidation(unittest.TestCase):
                          "price": 0.1,
                          "stream_properties": {
                              "total_molar_flow": 1.0, "temperature": 300.0,
-                             "pressure": 101325.0}}],
+                             "pressure": 101325.0,
+                             "phases": {"l": {
+                                 "total_molar_flow": 1.0,
+                                 "composition": [
+                                     {"component_name": "ethanol",
+                                      "mol_fraction": 1.0}]}}}}],
             "utilities": {"heat_utilities": [], "power_utilities": [],
                           "other_utilities": []},
         }

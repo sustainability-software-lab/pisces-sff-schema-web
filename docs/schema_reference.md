@@ -92,4 +92,4 @@ The `streams` array maps out the connectivity of the flowsheet, defining how mat
     - **pressure** (`Pa`)
     - **total_mass_flow** (`kg/hr`, optional)
     - **total_volumetric_flow** (`m3/hr`, optional)
-    - **composition**: An array defining the phase, component name (linking to the `chemicals` array IDs), and exact mol fraction.
+    - **phases**: An object keyed by phase symbol (`l`, `g`, `s`, ...). Each phase carries its own `total_molar_flow` (required) and `composition` (required), plus optional `total_mass_flow` and `total_volumetric_flow`. Each `composition` entry gives a `component_name` (linking to the `chemicals` array IDs) and mol/mass fractions **relative to that phase**; the phase is the parent key, not a per-component field.

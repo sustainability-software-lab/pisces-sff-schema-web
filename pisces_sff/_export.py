@@ -127,6 +127,12 @@ def available_sff_versions():
 #: emission in _build_sff_dict below.
 _TEA_CURRENCY_SINCE = (0, 0, 8)
 
+#: First schema version that structures a stream's composition and totals
+#: per-phase (stream_properties.phases keyed by phase symbol) instead of a
+#: single flat composition array. Gated in _build_sff_dict so 0.0.5-0.0.8 stay
+#: byte-stable.
+_PHASES_SINCE = (0, 0, 9)
+
 # Every versioned exporter assembles the same core document; only the
 # version-specific additions differ. Keeping the assembly here means adding a
 # schema version costs one thin function rather than a copy of ~170 lines that
@@ -264,17 +270,24 @@ def _build_sff_dict(sys, tea=None,
     for raw_stream in all_streams:
         rs = raw_stream
         if not (rs.source or rs.sink): continue # skip isolated streams
+        stream_properties = {
+            "total_mass_flow": scalar(rs.F_mass, "kg/h", inline),
+            "total_molar_flow": scalar(rs.F_mol, "kmol/h", inline),
+            "temperature": scalar(rs.T, "K", inline),
+            "pressure": scalar(rs.P, "Pa", inline),
+        }
+        # 0.0.9+ makes each phase first-class (its own totals + composition);
+        # earlier versions keep the single flat composition array. Gated so the
+        # older stream shape stays byte-identical.
+        if version_tuple(sff_version) >= _PHASES_SINCE:
+            stream_properties["phases"] = get_phase_properties(rs, inline)
+        else:
+            stream_properties["composition"] = get_composition(rs)
         stream = {"id": rs.ID,
                   "source_unit_id": rs.source.ID if rs.source is not None else "None",
                   "sink_unit_id": rs.sink.ID if rs.sink is not None else "None",
                   "price": scalar(rs.price, "$/kg", inline),
-                  "stream_properties": {
-                      "total_mass_flow": scalar(rs.F_mass, "kg/h", inline),
-                      "total_molar_flow": scalar(rs.F_mol, "kmol/h", inline),
-                      "temperature": scalar(rs.T, "K", inline),
-                      "pressure": scalar(rs.P, "Pa", inline),
-                      "composition": get_composition(rs),
-                      }
+                  "stream_properties": stream_properties,
                   }
         try:
             stream["stream_properties"]["total_volumetric_flow"] = scalar(rs.F_vol, "m3/h", inline)
@@ -533,6 +546,54 @@ def export_biosteam_flowsheet_sff_0_0_8(sys, filepath, tea=None,
     _write_sff_json(flowsheet_to_export, filepath)
 
 
+#%% Export function for SFF schema v0.0.9
+def export_biosteam_flowsheet_sff_0_0_9(sys, filepath, tea=None,
+                                        stoichiometry="dict", # must be one of (None, "vector", "dict")
+                                        composition_units="both", # "mol%", "mass%", or "both"
+                                        microorganisms=None, # optional list of microbial hosts
+                                        reproducibility=None, # optional recipe block; see pisces_sff._runner
+                                        sff_version='0.0.9', # must match this function's name suffix
+                                        ):
+    """
+    Export a simulated BioSTEAM system against SFF schema v0.0.9.
+
+    Identical to the v0.0.8 exporter except for the stream structure the shared
+    builder emits at this version: each stream's ``stream_properties.phases`` is
+    an object keyed by phase symbol, and every phase carries its own total
+    molar/mass/volumetric flows and its own composition (see
+    :func:`get_phase_properties`). The whole-stream totals, temperature, and
+    pressure are retained; the flat ``composition`` array is dropped.
+
+    Parameters
+    ----------
+    sys : biosteam.System
+        A simulated system to export.
+    filepath : str
+        Path to write the SFF JSON file to.
+    tea : biosteam.TEA, optional
+        TEA object to read cost assumptions from. Defaults to ``sys.TEA``.
+    stoichiometry : str, optional
+        One of ``None``, ``'vector'``, or ``'dict'``.
+    composition_units : str, optional
+        ``'mol%'``, ``'mass%'``, or ``'both'``.
+    microorganisms : list, optional
+        Microbial hosts; each entry is a string or a dict with a ``'name'`` key.
+    reproducibility : dict, optional
+        Recipe block written to ``metadata['reproducibility']``. Built by
+        :func:`pisces_sff._runner.build_reproducibility`. Omitted when falsy.
+    sff_version : str, optional
+        Version recorded as ``metadata['sff_version']``.
+    """
+    flowsheet_to_export = _build_sff_dict(
+        sys, tea=tea, stoichiometry=stoichiometry,
+        composition_units=composition_units, microorganisms=microorganisms,
+        sff_version=sff_version,
+    )
+    if reproducibility:
+        flowsheet_to_export['metadata']['reproducibility'] = reproducibility
+    _write_sff_json(flowsheet_to_export, filepath)
+
+
 #%% Helper functions
 
 def is_feedstock(stream, all_sys_feeds):
@@ -679,6 +740,66 @@ def get_composition(stream,
                     comp[-1]['mol_fraction'] = sp.imol[c]/sp.F_mol
                     comp[-1]['mass_fraction'] = sp.imass[c]/sp.F_mass
     return comp
+
+
+def get_phase_properties(stream, inline):
+    """
+    Build the per-phase properties block for a stream (SFF v0.0.9+).
+
+    Returns a dict keyed by phase symbol ('l', 'g', 's', ...). Each value carries
+    that phase's own total molar/mass/volumetric flows and its molar and mass
+    composition, with all fractions taken relative to that phase. A phase with
+    zero molar flow contributes no components (matching get_composition's
+    ``sp.imol[c] > 0`` guard), so its ``composition`` is an empty list.
+
+    Parameters
+    ----------
+    stream : thermosteam.Stream
+        A simulated stream.
+    inline : bool
+        Passed through to :func:`scalar`: True emits inline ``{"value","units"}``
+        pairs (pre-0.0.7 shape), False emits bare numbers whose units come from
+        ``quantity_units_global``.
+
+    Returns
+    -------
+    dict
+        ``{phase_symbol: {"total_mass_flow", "total_molar_flow",
+        "total_volumetric_flow"?, "composition"}}``.
+    """
+    s = stream
+    chem_IDs = [chem.ID for chem in list(s.chemicals)]
+    phases = {}
+    for p in s.phases:
+        sp = s[p]
+        phase = {
+            "total_mass_flow": scalar(sp.F_mass, "kg/h", inline),
+            "total_molar_flow": scalar(sp.F_mol, "kmol/h", inline),
+        }
+        try:
+            phase["total_volumetric_flow"] = scalar(sp.F_vol, "m3/h", inline)
+        except Exception as e:
+            # Same optional-field fallback as the whole-stream volumetric flow:
+            # a missing liquid molar volume method is expected; anything else is
+            # unexpected but still non-fatal. Omit the key and warn only on the
+            # unexpected cause.
+            if 'liquid molar volume method' not in str(e).lower():
+                warnings.warn(
+                    f"could not compute total_volumetric_flow for phase {p!r} "
+                    f"of stream {getattr(s, 'ID', s)!r}; omitting it: {e}",
+                    stacklevel=2,
+                )
+        composition = []
+        for c in chem_IDs:
+            if sp.imol[c] > 0:
+                composition.append({
+                    "component_name": c,
+                    "mol_fraction": sp.imol[c] / sp.F_mol,
+                    "mass_fraction": sp.imass[c] / sp.F_mass,
+                })
+        phase["composition"] = composition
+        phases[p] = phase
+    return phases
 
 
 def get_reactions(unit, stoichiometry): # !!! update -- fix order of reactions (potentially using settrace)

@@ -53,11 +53,12 @@ class TestScalarsAreBareNumbers(unittest.TestCase):
         self.assertEqual(props["temperature"]["minimum"], 0)
 
     def test_stream_properties_required_is_preserved(self):
+        # The three 0.0.7-era members stay required; 0.0.9 additionally requires
+        # `phases`, so assert the subset rather than exact equality.
         sp = (self.schema["properties"]["streams"]["items"]
               ["properties"]["stream_properties"])
-        self.assertEqual(
-            sorted(sp["required"]),
-            ["pressure", "temperature", "total_molar_flow"],
+        self.assertTrue(
+            {"pressure", "temperature", "total_molar_flow"}.issubset(sp["required"])
         )
 
     def test_heat_utility_scalars_are_numbers(self):
@@ -127,7 +128,12 @@ class TestOldShapeIsRejected(unittest.TestCase):
                          "price": 0.1,
                          "stream_properties": {
                              "total_molar_flow": 1.0, "temperature": 300.0,
-                             "pressure": 101325.0}}],
+                             "pressure": 101325.0,
+                             "phases": {"l": {
+                                 "total_molar_flow": 1.0,
+                                 "composition": [
+                                     {"component_name": "ethanol",
+                                      "mol_fraction": 1.0}]}}}}],
             "utilities": {"heat_utilities": [], "power_utilities": [],
                           "other_utilities": []},
         }

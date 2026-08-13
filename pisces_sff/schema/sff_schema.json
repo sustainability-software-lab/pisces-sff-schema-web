@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Standard Flowsheet Format (SFF)",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "A standardized, machine-readable representation of a process flowsheet designed for interoperability and data exchange. It represents the process as a directed graph with rich data attached to both nodes (units) and edges (streams).",
   "type": "object",
   "definitions": {
@@ -21,6 +21,57 @@
         }
       },
       "required": ["aliases", "quantity_units"]
+    },
+    "stream_phase": {
+      "type": "object",
+      "description": "One phase of a stream: its own total flows and its molar/mass composition, with all fractions taken relative to this phase. The phase symbol ('l' = liquid, 'g' = gas, 's' = solid, ...) is the key under stream_properties.phases.",
+      "properties": {
+        "total_mass_flow": {
+          "type": "number",
+          "description": "Total mass flow rate of this phase. Quantity units: quantity_units_global 'mass_flow' (default 'kg/hr')."
+        },
+        "total_molar_flow": {
+          "type": "number",
+          "description": "Total molar flow rate of this phase. Quantity units: quantity_units_global 'molar_flow' (default 'kmol/hr')."
+        },
+        "total_volumetric_flow": {
+          "type": "number",
+          "description": "Total volumetric flow rate of this phase. Quantity units: quantity_units_global 'volumetric_flow' (default 'm3/hr')."
+        },
+        "composition": {
+          "description": "An array detailing the chemical components present in this phase. All fractions are relative to this phase.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "component_name": {
+                "type": "string",
+                "description": "Chemical component ID, cross-referencing the 'chemicals' array."
+              },
+              "mol_fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Mole fraction of this component within this phase."
+              },
+              "mass_fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Mass fraction of this component within this phase."
+              }
+            },
+            "required": [
+              "component_name",
+              "mol_fraction"
+            ]
+          }
+        }
+      },
+      "required": [
+        "total_molar_flow",
+        "composition"
+      ]
     }
   },
   "properties": {
@@ -423,41 +474,20 @@
                 "type": "number",
                 "description": "Pressure. Quantity units: quantity_units_global 'pressure' (default 'Pa')."
               },
-              "composition": {
-                "description": "An array detailing the chemical components of the stream.",
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "phase": {
-                      "type": "string",
-                      "default": "l"
-                    },
-                    "component_name": {
-                      "type": "string"
-                    },
-                    "mol_fraction": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 1
-                    },
-                    "mass_fraction": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 1
-                    }
-                  },
-                  "required": [
-                    "component_name",
-                    "mol_fraction"
-                  ]
-                }
+              "phases": {
+                "description": "The phases present in this stream, keyed by phase symbol ('l' = liquid, 'g' = gas, 's' = solid, ...). Each value details that phase's own total flows and composition.",
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/definitions/stream_phase"
+                },
+                "minProperties": 1
               }
             },
             "required": [
               "total_molar_flow",
               "temperature",
-              "pressure"
+              "pressure",
+              "phases"
             ]
           }
         },
