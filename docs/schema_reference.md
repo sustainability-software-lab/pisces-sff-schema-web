@@ -4,13 +4,14 @@ The Standard Flowsheet Format (SFF) is a JSON document strictly adhering to our 
 
 ## Core Properties
 
-Every valid SFF JSON object contains five essential properties at its root:
+Every valid SFF JSON object contains six essential properties at its root:
 
 1. `metadata`: Contextual data about the process simulation.
 2. `units`: The unit operations (nodes).
 3. `streams`: Process streams connecting the units (edges).
 4. `utilities`: Global heating, cooling, and power utilities used by the process.
 5. `chemicals`: A list of pure chemical components involved.
+6. `quantity_units_global`: A registry of default quantity units for widely-used quantities and prices, keyed by canonical name; each entry carries the `aliases` a quantity appears under and its `quantity_units` string. Bare numeric quantities elsewhere in the file resolve their units here.
 
 ---
 
@@ -19,7 +20,7 @@ Every valid SFF JSON object contains five essential properties at its root:
 The `metadata` object provides high-level information about the process flowsheet, versions, and economic settings.
 
 - **sff_version**: The version of SFF used (e.g., `"1.0"`). *(Required)*
-- **TEA_currency**: The currency used in the techno-economic analysis, typically `"USD"`.
+- **TEA_currency**: The currency used to report all cost results, typically `"USD"`. BioSTEAM exports always report `"USD"`. *(Required)*
 - **TEA_year**: The baseline year used for calculating costs. *(Required)*
 - **source_doi**: A digital object identifier pointing to the publication where the process was introduced.
 - **process_title**: Title of the process flowsheet.
@@ -27,6 +28,7 @@ The `metadata` object provides high-level information about the process flowshee
 - **products**: Product and co-product material streams for this flowsheet, each with a required `stream_id` and an optional `display_name`. *(Required)*
 - **microorganisms**: Microbial hosts used for bioproduction, if applicable. Represented as a list (not a single string) so that co-cultures and multi-host processes can each be a distinct entry; every entry has a required `name` and an optional `label`.
 - **flowsheet_designers**: Authors who designed the simulation.
+- **reproducibility**: Everything needed to rebuild the environment and re-run the model that produced this flowsheet: the full text and SHA-256 of the environment specification (`environment`) and load script (`load_script`), the pinned `simulator_package` and `flowsheet_model_package` (each identified by a VCS `commit` + `url`, or by a released `version`), and a `resolved` block recording the Python version, platform, environment key, timestamp, and installed package versions observed at export time. Optional — flowsheets exported without a recipe omit it.
 
 ---
 
@@ -38,13 +40,23 @@ The `chemicals` array defines the chemical species available in the simulation. 
 
 ---
 
+### Quantity Units Global
+
+The `quantity_units_global` object is a registry of default quantity units for widely-used quantities and prices, keyed by canonical name (e.g., `temperature`, `mass_flow`, `price`). Each entry carries:
+- **aliases**: The field names a quantity appears under across the flowsheet (e.g., `temperature` also covers `T` and `temperature_limit`).
+- **quantity_units**: The unit string for that quantity (e.g., `"K"`, `"kg/hr"`, `"USD/kg"`).
+
+Bare numeric scalars elsewhere in the file (stream and utility properties, prices) resolve their units by looking up the relevant field name against this registry's aliases.
+
+---
+
 ### Utilities
 
 The `utilities` object is broken down into three main categories of global utilities:
 
-- **heat_utilities**: Heating and cooling utility types (e.g., "high-pressure steam"). Each details its temperature, pressure, regeneration and heat transfer prices, composition, and results unit.
-- **power_utilities**: Electrical utility types (e.g., "marginal electricity"), listing their electricity price.
-- **other_utilities**: Alternative utilities (e.g., combustion-based like "natural gas") with parameters similar to heat utilities.
+- **heat_utilities**: Heating and cooling utility types (e.g., "high-pressure steam"). Each details its temperature, pressure, regeneration and heat transfer prices, composition, and `quantity_units_for_utility_results` (the units of its per-unit-operation values in `utility_consumption_results`/`utility_production_results`).
+- **power_utilities**: Electrical utility types (e.g., "marginal electricity"), listing their `electrical_energy_price` and `quantity_units_for_utility_results`.
+- **other_utilities**: Alternative utilities (e.g., combustion-based like "natural gas") with parameters similar to heat utilities, including `quantity_units_for_utility_results`.
 
 ---
 
@@ -59,6 +71,7 @@ The `units` array contains all operational nodes of the process graph (e.g., rea
 - **thermo_property_package**: Defines how thermodynamic parameters (mixture, gamma, phi, PCF) were estimated.
 - **reactions**: Detailed definitions for chemical or biological reactions taking place inside the unit, indicating parallel indices, conversions, and target reactants.
 - **design_results**: Generated metrics for the operation of this unit.
+- **quantity_units_for_design_results**: Quantity units for each key in `design_results`, by the same key (from the simulator's `_units`).
 - **purchase_costs** & **installed_costs**: Itemized economic data detailing the cost of this particular unit operation.
 - **utility_consumption_results** & **utility_production_results**: Realized consumption and generation of power/heat per utility type (linking back to the IDs declared in `utilities`).
 
@@ -72,11 +85,12 @@ The `streams` array maps out the connectivity of the flowsheet, defining how mat
 - **source_unit_id**: The ID of the originating unit operation. *(Required)*
 - **sink_unit_id**: The ID of the receiving unit operation. *(Required)*
 - **stream_description**: A qualitative description (e.g., "Make-up solvent").
-- **price**: Cost per quantity of the stream material (e.g., $/kg).
-- **stream_properties**: A detailed block containing strictly required state information:
-    - **total_mass_flow**
-    - **total_volumetric_flow**
-    - **temperature**
-    - **pressure**
-    - **total_molar_flow** (optional)
-    - **composition**: An array defining the phase, component name (linking to the `chemicals` array IDs), and exact mol fraction.
+- **roles**: An optional array (added in v0.0.10) naming the roles this stream plays. Every non-isolated stream carries exactly one base topology role — `input` (a sink but no source), `output` (a source but no sink), or `internal` (both) — and may additionally carry designation roles: `purchased_raw_material` (a priced input), `feedstock` (a feedstock input; can co-occur with `purchased_raw_material`), and `product` (a product output). Values are unique; the enum is `["input", "output", "purchased_raw_material", "feedstock", "product", "internal"]`. Omitted by exporters targeting pre-0.0.10 schemas.
+- **price**: A bare number giving the cost per quantity of the stream material. Its units come from `quantity_units_global` under `price` (BioSTEAM-native default `USD/kg`), not an inline unit string.
+- **stream_properties**: A detailed block of stream state. `total_molar_flow`, `temperature`, `pressure`, and `phases` are required; the remaining scalars are optional. Each scalar below is a bare number whose units come from `quantity_units_global` (BioSTEAM-native defaults noted); `phases` is an object (see below):
+    - **total_molar_flow** (`kmol/hr`)
+    - **temperature** (`K`)
+    - **pressure** (`Pa`)
+    - **total_mass_flow** (`kg/hr`, optional)
+    - **total_volumetric_flow** (`m3/hr`, optional)
+    - **phases**: An object keyed by phase symbol (`l`, `g`, `s`, ...). Each phase carries its own `total_molar_flow` (required) and `composition` (required), plus optional `total_mass_flow` and `total_volumetric_flow`. Each `composition` entry gives a `component_name` (linking to the `chemicals` array IDs) and mol/mass fractions **relative to that phase**; the phase is the parent key, not a per-component field.

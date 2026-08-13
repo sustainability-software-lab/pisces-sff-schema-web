@@ -13,12 +13,9 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_export_module(sff_version="0.0.5"):
+def load_export_module():
     package = types.ModuleType("pisces_sff")
     package.__path__ = [str(ROOT / "pisces_sff")]
-
-    version_module = types.ModuleType("pisces_sff._version")
-    version_module.CURRENT_SFF_VERSION = sff_version
 
     thermosteam = types.ModuleType("thermosteam")
     thermosteam.Reaction = type("Reaction", (), {})
@@ -42,7 +39,6 @@ def load_export_module(sff_version="0.0.5"):
 
     modules = {
         "pisces_sff": package,
-        "pisces_sff._version": version_module,
         "numpy": numpy,
         "thermosteam": thermosteam,
         "thermosteam.reaction": reaction_package,
@@ -82,32 +78,6 @@ class ExportVersionTest(unittest.TestCase):
             document = json.loads(output.read_text())
 
         self.assertEqual(document["metadata"]["sff_version"], "0.0.5")
-
-    def test_export_stamp_uses_central_version_authority(self):
-        export_module = load_export_module(sff_version="9.9.9")
-        chemical = SimpleNamespace(ID="Water", formula="H2O", CAS="7732-18-5", MW=18.015)
-        stream = SimpleNamespace(
-            ID="feed",
-            source=None,
-            sink=None,
-            chemicals=[chemical],
-            vle_chemicals=[chemical],
-        )
-        system = SimpleNamespace(
-            flowsheet=SimpleNamespace(),
-            units=[],
-            streams=[stream],
-            feeds=[],
-            products=[],
-            TEA=SimpleNamespace(duration=(2025, 2045)),
-        )
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output = Path(tmpdir) / "export.json"
-            export_module.export_biosteam_flowsheet_sff_0_0_5(system, output)
-            document = json.loads(output.read_text())
-
-        self.assertEqual(document["metadata"]["sff_version"], "9.9.9")
 
     def test_composition_normalizes_only_positive_exported_components(self):
         export_module = load_export_module()

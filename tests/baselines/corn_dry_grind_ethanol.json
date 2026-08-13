@@ -1,0 +1,16 @@
+{
+  "recorded_from": "first successful Tier 3 run",
+  "biosteam_version": "2.46.1",
+  "env_key": "a996d9af0728c87797660ff093b1b4f795f6924876370c6a482e552839f0f894",
+  "n_units": 71,
+  "n_streams": 108,
+  "n_chemicals": 22,
+  "TEA_year": 2018,
+  "stream_mass_flows": {
+    "corn": 46375.0,
+    "ethanol": 15777.73164598456,
+    "DDGS": 11818.977895848533,
+    "crude_oil": 687.8288200781251
+  },
+  "total_installed_cost": 35009700.98249824
+}
