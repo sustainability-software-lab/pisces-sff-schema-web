@@ -96,6 +96,16 @@ class TestEndToEndExport(unittest.TestCase):
         self.assertEqual(len(self.flowsheet["streams"]), self.baseline["n_streams"])
         self.assertEqual(len(self.flowsheet["chemicals"]), self.baseline["n_chemicals"])
 
+    def test_export_uses_the_current_schema_version(self):
+        # The corpus auto-syncs to the schema: regenerate_corpus() with no
+        # explicit version resolves through export_model's DEFAULT_SFF_VERSION,
+        # which is read_schema_version(). This guards against that pin drifting
+        # from the schema on a future bump.
+        from pisces_sff._version import read_schema_version
+        self.assertEqual(
+            self.flowsheet["metadata"]["sff_version"], read_schema_version()
+        )
+
     def test_tea_year_matches_the_baseline(self):
         self.assertEqual(
             self.flowsheet["metadata"]["TEA_year"], self.baseline["TEA_year"]

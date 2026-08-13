@@ -42,8 +42,26 @@ ENV_NAME_PREFIX = 'sff-'
 #: Repository root; the only entry placed on the child's PYTHONPATH.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-#: SFF schema version exports are written against by default.
-DEFAULT_SFF_VERSION = '0.0.10'
+def _schema_version():
+    """
+    Read the schema's ``"version"`` without importing ``pisces_sff._version``.
+
+    This duplicates the one-line read in
+    :func:`pisces_sff._version.read_schema_version` on purpose: ``_harness`` must
+    stay importable by file path -- ``tests/tier1/test_harness.py`` loads it that
+    way, relying on it importing only the standard library and PyYAML, so a
+    relative import of ``_version`` here is not available. The single source of
+    truth is unchanged: this reads the same schema file.
+    """
+    schema_file = Path(__file__).resolve().parent / 'schema' / 'sff_schema.json'
+    with open(schema_file, 'r', encoding='utf-8') as f:
+        return json.load(f)['version']
+
+
+#: SFF schema version exports are written against by default. Derived from the
+#: schema's own "version" field (the single source of truth) rather than pinned
+#: as a literal, so a schema version bump needs no matching edit here.
+DEFAULT_SFF_VERSION = _schema_version()
 
 #%% Recipe helpers
 
@@ -441,7 +459,7 @@ def export_lock():
 
 
 def export_model(model_dir, output_path, recreate_env=False, conda_exe=None,
-                 sff_version=DEFAULT_SFF_VERSION, run=None):
+                 sff_version=None, run=None):
     """
     Export a model to SFF from inside the environment its recipe pins.
 
@@ -463,7 +481,9 @@ def export_model(model_dir, output_path, recreate_env=False, conda_exe=None,
     conda_exe : str, optional
         Explicit conda executable; see :func:`find_conda_exe`.
     sff_version : str, optional
-        SFF schema version to export against.
+        SFF schema version to export against. Defaults to ``None``, which
+        resolves to :data:`DEFAULT_SFF_VERSION` (the schema's current
+        ``"version"``).
     run : callable, optional
         Subprocess runner, injectable for testing.
 
@@ -481,6 +501,8 @@ def export_model(model_dir, output_path, recreate_env=False, conda_exe=None,
     """
     if run is None:
         run = subprocess.run
+    if sff_version is None:
+        sff_version = DEFAULT_SFF_VERSION
     model_dir = Path(model_dir).resolve()
     env_yaml_path = model_dir / 'environment.yml'
     load_script_path = model_dir / 'load.py'

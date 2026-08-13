@@ -25,6 +25,7 @@ lazily inside :func:`regenerate_corpus`, so this module stays loadable by a
 Tier-1 test (which injects a fake exporter) without pulling in biosteam.
 """
 
+import argparse
 from pathlib import Path
 
 __all__ = ('regenerate_corpus', 'iter_model_dirs', 'MODELS_ROOT', 'CORPUS_DIR')
@@ -53,7 +54,8 @@ def iter_model_dirs(models_root=MODELS_ROOT):
     return sorted(p.parent for p in Path(models_root).rglob('load.py'))
 
 
-def regenerate_corpus(output_dir, models_root=MODELS_ROOT, export=None):
+def regenerate_corpus(output_dir, models_root=MODELS_ROOT, export=None,
+                      sff_version=None):
     """
     Export every discovered model into `output_dir` and return the written paths.
 
@@ -64,9 +66,16 @@ def regenerate_corpus(output_dir, models_root=MODELS_ROOT, export=None):
     models_root : str or Path, optional
         Root to discover model recipes under.
     export : callable, optional
-        ``export(model_dir, output_path)`` used to export one model. Defaults to
-        :func:`pisces_sff.export_model` (the full harness), imported lazily so
-        this module stays import-light for Tier 1. Tests inject a fake here.
+        ``export(model_dir, output_path, sff_version=...)`` used to export one
+        model. Defaults to :func:`pisces_sff.export_model` (the full harness),
+        imported lazily so this module stays import-light for Tier 1. Tests
+        inject a fake here.
+    sff_version : str, optional
+        SFF schema version to export against, threaded to `export`. Left as
+        ``None`` by default so the export callable's own default applies -- for
+        the harness that default is the schema's current ``"version"``
+        (:func:`pisces_sff._version.read_schema_version`), so the committed
+        corpus auto-syncs to the current schema without a manual pin.
 
     Returns
     -------
@@ -81,7 +90,7 @@ def regenerate_corpus(output_dir, models_root=MODELS_ROOT, export=None):
     written = []
     for model_dir in iter_model_dirs(models_root):
         output_path = output_dir / f'{model_dir.name}.json'
-        export(model_dir, output_path)
+        export(model_dir, output_path, sff_version=sff_version)
         written.append(output_path)
     return written
 
@@ -90,12 +99,25 @@ def main(argv=None):
     """
     Regenerate the committed corpus in-place. See the module docstring.
 
+    Parameters
+    ----------
+    argv : list of str, optional
+
     Returns
     -------
     int
         Process exit code.
     """
-    written = regenerate_corpus(CORPUS_DIR)
+    parser = argparse.ArgumentParser(
+        prog='python -m pisces_sff._regenerate_corpus',
+        description='Regenerate the committed reference corpus in-place.',
+    )
+    parser.add_argument(
+        '--sff-version', default=None,
+        help='SFF schema version to export against; defaults to the schema\'s '
+             'current "version", so the corpus tracks the schema automatically.')
+    args = parser.parse_args(argv)
+    written = regenerate_corpus(CORPUS_DIR, sff_version=args.sff_version)
     for path in written:
         print(f'wrote {path}')
     return 0

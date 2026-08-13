@@ -27,7 +27,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from ._harness import REPO_ROOT, environment_key, package_record, sha256_bytes
+from ._harness import (DEFAULT_SFF_VERSION, REPO_ROOT, environment_key,
+                       package_record, sha256_bytes)
 from ._validate import validate_json_against_schema
 
 __all__ = ('run_model_export', 'build_reproducibility', 'load_model_module')
@@ -135,7 +136,8 @@ def build_reproducibility(model_dir, module, env_key=None):
     Returns
     -------
     dict
-        Conforming to ``metadata.reproducibility`` in SFF v0.0.10.
+        Conforming to the ``metadata.reproducibility`` shape in the current SFF
+        schema.
     """
     model_dir = Path(model_dir).resolve()
     env_path = model_dir / 'environment.yml'
@@ -166,7 +168,7 @@ def build_reproducibility(model_dir, module, env_key=None):
 #%% Export
 
 
-def run_model_export(model_dir, output_path, sff_version='0.0.10', env_key=None):
+def run_model_export(model_dir, output_path, sff_version=None, env_key=None):
     """
     Load, simulate, and export a model, then validate the result.
 
@@ -177,7 +179,9 @@ def run_model_export(model_dir, output_path, sff_version='0.0.10', env_key=None)
     output_path : str or Path
         Path to write the SFF JSON file to.
     sff_version : str, optional
-        SFF schema version to export against.
+        SFF schema version to export against. Defaults to ``None``, which
+        resolves to :data:`pisces_sff._harness.DEFAULT_SFF_VERSION` (the schema's
+        current ``"version"``).
     env_key : str, optional
         Environment key supplied by the harness.
 
@@ -196,6 +200,8 @@ def run_model_export(model_dir, output_path, sff_version='0.0.10', env_key=None)
     """
     from . import _export
 
+    if sff_version is None:
+        sff_version = DEFAULT_SFF_VERSION
     model_dir = Path(model_dir).resolve()
     output_path = Path(output_path)
     module = load_model_module(model_dir)
@@ -262,8 +268,9 @@ def main(argv=None):
                         help='directory containing environment.yml and load.py')
     parser.add_argument('--output', required=True,
                         help='path to write the SFF JSON file to')
-    parser.add_argument('--sff-version', default='0.0.10',
-                        help='SFF schema version to export against')
+    parser.add_argument('--sff-version', default=None,
+                        help='SFF schema version to export against; defaults to '
+                             'the schema\'s current "version"')
     parser.add_argument('--env-key', default=None,
                         help='environment key recorded in the exported file')
     args = parser.parse_args(argv)
